@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<h1>Supabase Test</h1>
+<div id="log"></div>
+<script>
+window.onerror = function(m, u, l) { document.getElementById('log').innerHTML += '<p style="color:red">ERROR: ' + m + ' at line ' + l + '</p>'; }
+window.addEventListener("unhandledrejection", function(e) { document.getElementById('log').innerHTML += '<p style="color:orange">PROMISE REJECTION: ' + (e.reason&&e.reason.message?e.reason.message:e.reason) + '</p>'; });
+
+function log(m) { document.getElementById('log').innerHTML += '<p>' + m + '</p>'; }
+
+async function testSupabase() {
+    log('Testing Supabase init...');
+    try {
+        const SUPABASE_URL = 'https://vkmonqcsmqbyzksrmhsp.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZrbW9ucWNzbXFieXprc3JtaHNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwODk0MDgsImV4cCI6MjA4ODY2NTQwOH0.xxr0dzFt_9i8knAZTL6qd-wEWeL3owGe2sn6u6SYm_c';
+        
+        if (!window.supabase) {
+            log('ERROR: window.supabase is undefined. CDN failed to load.');
+            return;
+        }
+        
+        const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        log('Client created. Fetching app_data...');
+        
+        const { data, error } = await sb.from('app_data').select('key').limit(1);
+        if (error) {
+            log('SUPABASE ERROR: ' + JSON.stringify(error));
+        } else {
+            log('SUCCESS! Found ' + (data ? data.length : 0) + ' records.');
+        }
+    } catch(e) {
+        log('Exception: ' + e.message);
+    }
+}
+setTimeout(testSupabase, 500);
+</script>
+</body>
+</html>

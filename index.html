@@ -1,0 +1,1707 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GraceVision — Gestão Financeira</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+/* ===== RESET & ROOT ===== */
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0b0d14;--bg2:#12141f;--bg3:#191c2b;
+  --accent:#6366f1;--accent2:#a78bfa;--accent3:#818cf8;
+  --green:#22c55e;--red:#ef4444;--amber:#f59e0b;--cyan:#06b6d4;
+  --text:#f1f5f9;--text2:#94a3b8;--text3:#475569;
+  --border:rgba(255,255,255,.06);
+  --glass:rgba(255,255,255,.03);--glass-b:rgba(255,255,255,.06);
+  --radius:16px;--radius-sm:10px;
+  --shadow:0 8px 32px rgba(0,0,0,.4);
+  --font:'Inter',system-ui,-apple-system,sans-serif;
+}
+html{font-size:15px}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;
+  background-image:radial-gradient(ellipse at 10% 20%,rgba(99,102,241,.1) 0%,transparent 50%),
+    radial-gradient(ellipse at 90% 80%,rgba(167,139,250,.08) 0%,transparent 50%);
+  background-attachment:fixed;overflow-x:hidden}
+
+/* ===== LAYOUT ===== */
+.app{display:flex;min-height:100vh}
+.sidebar{width:260px;background:rgba(18,20,31,.8);backdrop-filter:blur(20px);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;padding:1.5rem;position:fixed;top:0;left:0;bottom:0;z-index:100;
+  transition:transform .3s}
+.main{margin-left:260px;flex:1;padding:2rem 2.5rem;min-height:100vh;overflow-x:hidden;max-width:calc(100vw - 260px)}
+
+/* ===== SIDEBAR ===== */
+.logo{display:flex;align-items:center;gap:.75rem;margin-bottom:2.5rem}
+.logo-icon{width:40px;height:40px;border-radius:12px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.1rem;color:#fff}
+.logo h2{font-size:1.2rem;background:linear-gradient(135deg,var(--accent),var(--accent2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.logo small{display:block;color:var(--text3);font-size:.7rem;font-weight:400;margin-top:2px}
+
+.nav{display:flex;flex-direction:column;gap:.35rem;flex:1}
+.nav-item{display:flex;align-items:center;gap:.75rem;padding:.8rem 1rem;border-radius:var(--radius-sm);
+  cursor:pointer;color:var(--text2);font-size:.9rem;font-weight:500;
+  border:1px solid transparent;transition:all .2s}
+.nav-item:hover{background:var(--glass);color:var(--text)}
+.nav-item.active{background:var(--glass);border-color:var(--glass-b);color:var(--text);font-weight:600}
+.nav-item svg{width:20px;height:20px;opacity:.7}
+.nav-item.active svg{opacity:1}
+
+.sidebar-footer{margin-top:auto;padding-top:1.5rem;border-top:1px solid var(--border)}
+.sidebar-footer p{color:var(--text3);font-size:.75rem;text-align:center}
+
+/* ===== HEADER ===== */
+.page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:2rem}
+.page-header h1{font-size:1.7rem;font-weight:700;letter-spacing:-.03em}
+.page-header p{color:var(--text2);font-size:.875rem;margin-top:.25rem}
+
+/* ===== CARDS ===== */
+.card{background:var(--glass);backdrop-filter:blur(16px);border:1px solid var(--glass-b);
+  border-radius:var(--radius);box-shadow:var(--shadow);padding:1.5rem;transition:transform .2s,border-color .2s;overflow:hidden}
+.card:hover{border-color:rgba(255,255,255,.12)}
+
+/* ===== KPI CARDS ===== */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.25rem;margin-bottom:2rem}
+.kpi .kpi-label{display:flex;align-items:center;gap:.5rem;color:var(--text2);font-size:.8rem;font-weight:500;margin-bottom:.5rem}
+.kpi .kpi-value{font-size:1.8rem;font-weight:700;letter-spacing:-.02em}
+.kpi .kpi-sub{font-size:.75rem;color:var(--text3);margin-top:.35rem}
+.kpi-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+/* ===== CHARTS ===== */
+.chart-grid{display:grid;grid-template-columns:2fr 1fr;gap:1.25rem;margin-bottom:2rem}
+.chart-title{font-size:1rem;font-weight:600;margin-bottom:1rem}
+
+/* ===== TABLE ===== */
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%;padding-bottom:.5rem}
+table{width:100%;border-collapse:collapse;min-width:600px}
+thead th{padding:.85rem 1rem;text-align:left;color:var(--text2);font-weight:500;font-size:.8rem;
+  text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border);background:rgba(0,0,0,.15);white-space:nowrap}
+tbody tr{border-bottom:1px solid rgba(255,255,255,.03);transition:background .15s}
+tbody tr:hover{background:rgba(255,255,255,.02)}
+td{padding:.85rem 1rem;font-size:.875rem;white-space:nowrap}
+.badge{display:inline-block;padding:.2rem .5rem;border-radius:6px;font-size:.75rem;font-weight:500}
+.badge-green{background:rgba(34,197,94,.15);color:var(--green)}
+.badge-red{background:rgba(239,68,68,.15);color:var(--red)}
+.badge-blue{background:rgba(99,102,241,.15);color:var(--accent3)}
+.badge-amber{background:rgba(245,158,11,.15);color:var(--amber)}
+
+/* ===== BUTTONS ===== */
+.btn{display:inline-flex;align-items:center;gap:.5rem;padding:.7rem 1.25rem;border-radius:var(--radius-sm);
+  font-family:inherit;font-size:.875rem;font-weight:500;cursor:pointer;border:none;transition:all .2s}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;
+  box-shadow:0 4px 15px rgba(99,102,241,.35)}
+.btn-primary:hover{box-shadow:0 6px 24px rgba(99,102,241,.45);transform:translateY(-1px)}
+.btn-outline{background:transparent;color:var(--text2);border:1px solid var(--border)}
+.btn-outline:hover{border-color:var(--accent);color:var(--text)}
+.btn-sm{padding:.5rem .85rem;font-size:.8rem}
+.btn-danger{background:rgba(239,68,68,.15);color:var(--red)}
+.btn-danger:hover{background:rgba(239,68,68,.25)}
+
+/* ===== MODAL ===== */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(6px);
+  display:flex;align-items:center;justify-content:center;z-index:200;opacity:0;pointer-events:none;transition:opacity .25s}
+.modal-overlay.open{opacity:1;pointer-events:auto}
+.modal{background:var(--bg2);border:1px solid var(--glass-b);border-radius:var(--radius);
+  padding:2rem;width:95%;max-width:520px;box-shadow:0 24px 64px rgba(0,0,0,.5);
+  transform:translateY(20px);transition:transform .25s}
+.modal-overlay.open .modal{transform:translateY(0)}
+.modal h3{font-size:1.2rem;margin-bottom:1.5rem}
+.modal label{display:block;color:var(--text2);font-size:.8rem;font-weight:500;margin-bottom:.35rem}
+.modal input,.modal select,.modal textarea{width:100%;padding:.7rem .85rem;background:rgba(0,0,0,.25);
+  border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:inherit;
+  font-size:.875rem;outline:none;transition:border-color .2s}
+.modal input:focus,.modal select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(99,102,241,.15)}
+.modal select option{background:var(--bg2);color:var(--text)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.form-group{margin-bottom:1rem}
+.form-actions{display:flex;justify-content:flex-end;gap:.75rem;margin-top:1.5rem}
+.radio-group{display:flex;gap:1rem}
+.radio-group label{display:flex;align-items:center;gap:.4rem;cursor:pointer;font-size:.875rem;color:var(--text);font-weight:400}
+.radio-group input[type=radio]{accent-color:var(--accent)}
+
+/* ===== PROGRESS BAR ===== */
+.progress-bar{width:100%;height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden}
+.progress-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width 1s ease}
+
+/* ===== ANIMATIONS ===== */
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.anim{animation:fadeUp .4s ease forwards}
+.anim-d1{animation-delay:.05s;opacity:0}
+.anim-d2{animation-delay:.1s;opacity:0}
+.anim-d3{animation-delay:.15s;opacity:0}
+.anim-d4{animation-delay:.2s;opacity:0}
+
+/* ===== EMPTY STATE ===== */
+.empty-state{text-align:center;padding:3rem;color:var(--text3)}
+.empty-state svg{width:48px;height:48px;opacity:.4;margin-bottom:1rem}
+.empty-state p{font-size:.9rem}
+
+/* ===== LOCK SCREEN ===== */
+.lock-screen{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .4s, visibility .4s;
+  background-image:radial-gradient(ellipse at 50% 50%,rgba(99,102,241,.15) 0%,transparent 70%);backdrop-filter:blur(20px)}
+.lock-screen.hidden{opacity:0;visibility:hidden;pointer-events:none}
+.lock-box{background:var(--glass);backdrop-filter:blur(20px);border:1px solid var(--glass-b);border-radius:var(--radius);padding:3rem 2.5rem;text-align:center;box-shadow:var(--shadow);max-width:400px;width:90%;transform:translateY(0);transition:transform .4s}
+.lock-screen.hidden .lock-box{transform:translateY(-20px)}
+.lock-icon{width:64px;height:64px;border-radius:16px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;color:#fff;font-size:2rem;font-weight:800;margin:0 auto 1.5rem;box-shadow:0 8px 24px rgba(99,102,241,.3)}
+.lock-title{font-size:1.5rem;font-weight:700;margin-bottom:.5rem;letter-spacing:-.03em}
+.lock-desc{color:var(--text2);font-size:.9rem;margin-bottom:2rem}
+.lock-input{width:100%;text-align:center;font-size:2rem;letter-spacing:.2em;padding:1rem;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);outline:none;margin-bottom:1.5rem;font-family:monospace;transition:border-color .2s}
+.lock-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(99,102,241,.15)}
+.lock-input.error{border-color:var(--red);animation:shake .4s}
+.lock-btn{width:100%;padding:1rem;font-size:1rem;font-weight:600;justify-content:center}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:900px){
+  .sidebar{transform:translateX(-100%)}
+  .sidebar.open{transform:translateX(0)}
+  .main{margin-left:0;padding:1.25rem;max-width:100vw}
+  .chart-grid{grid-template-columns:1fr}
+  .form-row{grid-template-columns:1fr}
+  .hamburger{display:flex!important}
+}
+.hamburger{display:none;position:fixed;top:1rem;left:1rem;z-index:150;background:var(--bg2);
+  border:1px solid var(--border);border-radius:var(--radius-sm);padding:.5rem;cursor:pointer;
+  align-items:center;justify-content:center}
+.hamburger svg{width:24px;height:24px;color:var(--text)}
+
+/* ===== SEARCH ===== */
+.search-box{display:flex;align-items:center;gap:.5rem;background:rgba(0,0,0,.2);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:.55rem .85rem;max-width:280px}
+.search-box input{background:none;border:none;color:var(--text);font-family:inherit;font-size:.85rem;width:100%;outline:none}
+.search-box svg{width:16px;height:16px;color:var(--text3);flex-shrink:0}
+
+/* ===== TABS ===== */
+.tabs{display:flex;gap:.5rem;margin-bottom:1.5rem}
+.tab{padding:.5rem 1rem;border-radius:8px;font-size:.8rem;font-weight:500;cursor:pointer;
+  color:var(--text2);background:transparent;border:1px solid transparent;transition:all .2s}
+.tab.active{background:var(--glass);border-color:var(--glass-b);color:var(--text)}
+.tab:hover{color:var(--text)}
+
+/* Scroll */
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:3px}
+</style>
+</head>
+<body>
+
+<!-- LOCK SCREEN -->
+<div class="lock-screen" id="lock-screen">
+  <div class="lock-box">
+    <div class="lock-icon">GV</div>
+    <h2 class="lock-title">GraceVision</h2>
+    <p class="lock-desc">Gestão Financeira Privada</p>
+    <form id="lock-form" onsubmit="event.preventDefault(); verifyPin()">
+      <input type="password" id="pin-input" class="lock-input" placeholder="••••" autofocus required autocomplete="off">
+      <button type="submit" class="btn btn-primary lock-btn">Acessar Plataforma</button>
+    </form>
+  </div>
+</div>
+
+<div class="app" id="app">
+  <!-- Hamburger for mobile -->
+  <button class="hamburger" onclick="document.querySelector('.sidebar').classList.toggle('open')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+  </button>
+
+  <!-- Sidebar -->
+  <nav class="sidebar" id="sidebar">
+    <div class="logo">
+      <div class="logo-icon">GV</div>
+      <div>
+        <h2>GraceVision</h2>
+        <small>Gestão Financeira 2026</small>
+      </div>
+    </div>
+
+    <div class="nav" id="nav">
+      <div class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+        Dashboard
+      </div>
+      <div class="nav-item" data-page="transactions" onclick="navigate('transactions')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+        Lançamentos
+      </div>
+      <div class="nav-item" data-page="clients" onclick="navigate('clients')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        Clientes
+      </div>
+      <div class="nav-item" data-page="planning" onclick="navigate('planning')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H2v7l6.29 6.29a1 1 0 001.42 0L15 13l-6-8z"/><circle cx="6" cy="9" r="1"/></svg>
+        Parcelas
+      </div>
+      <div class="nav-item" data-page="accounts" onclick="navigate('accounts')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+        Contas
+      </div>
+      <div class="nav-item" data-page="projections" onclick="navigate('projections')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        Projeções
+      </div>
+    </div>
+
+    <div class="sidebar-footer">
+      <p>Dário · GraceVision © 2026</p>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main" id="main-content"></main>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal-content"></div>
+</div>
+
+
+
+<!-- Supabase CDN (Already loaded in head) -->
+
+<script>
+// ============================================================
+//   DATA LAYER (LocalStorage)
+// ============================================================
+// ===== SUPABASE CONFIG =====
+const SUPABASE_URL = 'https://vkmonqcsmqbyzksrmhsp.supabase.co'
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZrbW9ucWNzbXFieXprc3JtaHNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwODk0MDgsImV4cCI6MjA4ODY2NTQwOH0.xxr0dzFt_9i8knAZTL6qd-wEWeL3owGe2sn6u6SYm_c'
+const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+// ===== HYBRID STORAGE (localStorage cache + Supabase cloud) =====
+const LS = {
+  get(k, def) {
+    try { return JSON.parse(localStorage.getItem('gv_'+k)) || def } catch { return def }
+  },
+  set(k, v) {
+    localStorage.setItem('gv_'+k, JSON.stringify(v))
+    LS._syncToCloud(k, v)
+  },
+  async _syncToCloud(k, v) {
+    if (!supabaseClient) return;
+    try {
+      await supabaseClient.from('app_data').upsert({ key: k, data: v, updated_at: new Date().toISOString() })
+    } catch(e) { console.warn('Supabase sync error:', e) }
+  }
+}
+
+function uid() { return Math.random().toString(36).substring(2,9) }
+function currency(v) { return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v) }
+function fmtDate(d) { if(!d) return '—'; const p=d.split('-'); return p[2]+'/'+p[1]+'/'+p[0] }
+
+// ===== SEED DATA (from spreadsheet GraceVision_Financeiro_2026) =====
+const SEED_VERSION = 'v4_with_confirmation'
+function seedIfEmpty() {
+  if (localStorage.getItem('gv_seed_version') === SEED_VERSION) return
+  // Force re-seed with real data
+  LS.set('accounts', [
+    {id:'acc1',name:'Nubank Pessoal — Dário',bank:'Nubank',type:'Pessoal',balance:23564.27,obs:'Conta principal'}
+  ])
+  LS.set('clients', [
+    {id:'c1',name:'Dra Indira Braga',monthlyValue:2500,payDay:'03',status:'Ativo',category:'Grace Vision',annualRevenue:30000},
+    {id:'c2',name:'Extand',monthlyValue:2000,payDay:'03',status:'Ativo',category:'Grace Vision',annualRevenue:24000},
+    {id:'c3',name:'Genesis Med',monthlyValue:2000,payDay:'03',status:'Ativo',category:'Grace Vision',annualRevenue:24000},
+    {id:'c4',name:'CF Empresarial (Allex)',monthlyValue:2000,payDay:'15',status:'Ativo',category:'Grace Vision',annualRevenue:24000},
+    {id:'c5',name:'JK Advocacia',monthlyValue:2000,payDay:'06',status:'Ativo',category:'Grace Vision',annualRevenue:24000},
+    {id:'c6',name:'Comperfil & The Cupons',monthlyValue:1500,payDay:'06 e 20',status:'Ativo',category:'Grace Vision',annualRevenue:18000},
+    {id:'c7',name:'IS Phone',monthlyValue:1100,payDay:'14',status:'Ativo',category:'Grace Vision',annualRevenue:13200},
+    {id:'c8',name:'Ivana Figueiredo',monthlyValue:1000,payDay:'07',status:'Ativo',category:'Outras receitas',annualRevenue:12000},
+    {id:'c9',name:'GTECs',monthlyValue:1000,payDay:'28',status:'Ativo',category:'Grace Vision',annualRevenue:12000},
+    {id:'c10',name:'Casa da Infancia',monthlyValue:600,payDay:'12',status:'Ativo',category:'Grace Vision',annualRevenue:7200},
+    {id:'c11',name:'Mundo Verde Teresina',monthlyValue:550,payDay:'04 e 18',status:'Ativo',category:'Grace Vision',annualRevenue:6600},
+    {id:'c12',name:'Maria Clara Seduction',monthlyValue:500,payDay:'15',status:'Ativo',category:'Grace Vision',annualRevenue:6000},
+    {id:'c13',name:'Publicar Company',monthlyValue:500,payDay:'15',status:'Ativo',category:'Grace Vision',annualRevenue:6000},
+    {id:'c14',name:'Gugu Motos Jaicós',monthlyValue:400,payDay:'13',status:'Ativo',category:'Grace Vision',annualRevenue:4800},
+    {id:'c15',name:'Paulo Magold',monthlyValue:330,payDay:'Semanal',status:'Ativo',category:'Grace Vision',annualRevenue:3960},
+    {id:'c16',name:'Lucas Lima Magold',monthlyValue:220,payDay:'Quinzenal',status:'Ativo',category:'Grace Vision',annualRevenue:2640}
+  ])
+  // confirmed: true = já recebido/debitado, false = pendente de confirmação
+  // Datas até 09/03/2026 = confirmado, datas futuras = pendente
+  LS.set('transactions', [
+    // === RECEITAS MARÇO 2026 ===
+    {id:'t1',description:'Dra Indira Braga',amount:2500,date:'2026-03-03',category:'Grace Vision',type:'income',accountId:'acc1',confirmed:true},
+    {id:'t2',description:'Extand',amount:2000,date:'2026-03-03',category:'Grace Vision',type:'income',accountId:'acc1',confirmed:true},
+    {id:'t3',description:'Genesis Med',amount:2000,date:'2026-03-03',category:'Grace Vision',type:'income',accountId:'acc1',confirmed:true},
+    {id:'t4',description:'CF Empresarial (Allex)',amount:2000,date:'2026-03-15',category:'Grace Vision',type:'income',accountId:'acc1',confirmed:false},
+    {id:'t5',description:'JK Advocacia',amount:2000,date:'2026-03-06',category:'Grace Vision',type:'income',accountId:'acc1',confirmed:true},
+    {id:'t6',description:'IS Phone',amount:1100,date:'2026-03-14',category:'Grace Vision',type:'income',accountId:'acc1',confirmed:false},
+    {id:'t7',description:'GTECs',amount:1000,date:'2026-03-28',category:'Grace Vision',type:'income',accountId:'acc1',confirmed:false},
+    {id:'t8',description:'Comperfil & The Cupons',amount:750,date:'2026-03-20',category:'Grace Vision',type:'income',accountId:'acc1',confirmed:false},
+    {id:'t9',description:'Comperfil & The Cupons',amount:750,date:'2026-03-06',category:'Grace Vision',type:'income',accountId:'acc1',confirmed:true},
+    {id:'t10',description:'Casa da Infancia',amount:600,date:'2026-03-12',category:'Grace Vision',type:'income',accountId:'acc1',confirmed:false},
+    {id:'t11',description:'Maria Clara Seduction',amount:500,date:'2026-03-15',category:'Grace Vision',type:'income',accountId:'acc1',confirmed:false},
+    {id:'t12',description:'Publicar Company',amount:500,date:'2026-03-15',category:'Grace Vision',type:'income',accountId:'acc1',confirmed:false},
+    {id:'t13',description:'Gugu Motos Jaicós',amount:400,date:'2026-03-13',category:'Grace Vision',type:'income',accountId:'acc1',confirmed:false},
+    {id:'t14',description:'Mundo Verde Teresina',amount:275,date:'2026-03-18',category:'Grace Vision',type:'income',accountId:'acc1',confirmed:false},
+    {id:'t15',description:'Mundo Verde Teresina',amount:275,date:'2026-03-04',category:'Grace Vision',type:'income',accountId:'acc1',confirmed:true},
+    {id:'t16',description:'Paulo Magold',amount:110,date:'2026-03-16',category:'Grace Vision',type:'income',accountId:'acc1',confirmed:false},
+    {id:'t17',description:'Lucas Lima Magold',amount:110,date:'2026-03-23',category:'Grace Vision',type:'income',accountId:'acc1',confirmed:false},
+    {id:'t18',description:'Paulo Magold',amount:110,date:'2026-03-30',category:'Grace Vision',type:'income',accountId:'acc1',confirmed:false},
+    {id:'t19',description:'Paulo Magold',amount:110,date:'2026-03-02',category:'Grace Vision',type:'income',accountId:'acc1',confirmed:true},
+    {id:'t20',description:'Lucas Lima Magold',amount:110,date:'2026-03-09',category:'Grace Vision',type:'income',accountId:'acc1',confirmed:true},
+    {id:'t21',description:'Ivana Figueiredo',amount:1000,date:'2026-03-07',category:'Outras receitas',type:'income',accountId:'acc1',confirmed:true},
+    {id:'t22',description:'Ajuda Pai',amount:500,date:'2026-03-30',category:'Outras receitas',type:'income',accountId:'acc1',confirmed:false},
+    {id:'t23',description:'Aluguel Casa',amount:475,date:'2026-03-30',category:'Investimentos',type:'income',accountId:'acc1',confirmed:false},
+    // === DESPESAS MARÇO 2026 ===
+    {id:'t24',description:'Aluguel AP',amount:2100,date:'2026-03-28',category:'Casa',type:'expense',accountId:'acc1',confirmed:false},
+    {id:'t25',description:'Condomínio AP',amount:350,date:'2026-03-20',category:'Casa',type:'expense',accountId:'acc1',confirmed:false},
+    {id:'t26',description:'Energia Casa',amount:260.89,date:'2026-03-05',category:'Casa',type:'expense',accountId:'acc1',confirmed:true},
+    {id:'t27',description:'Parcela Corolla XEI 2018 7/48',amount:2473.05,date:'2026-03-13',category:'Dívidas',type:'expense',accountId:'acc1',confirmed:false},
+    {id:'t28',description:'Mentoria Eduardo Martins',amount:1119.92,date:'2026-03-10',category:'Trabalho',type:'expense',accountId:'acc1',confirmed:false},
+    {id:'t29',description:'Contador Douglas',amount:400,date:'2026-03-30',category:'Trabalho',type:'expense',accountId:'acc1',confirmed:false},
+    {id:'t30',description:'Imposto RF',amount:166.98,date:'2026-03-20',category:'Trabalho',type:'expense',accountId:'acc1',confirmed:false},
+    {id:'t31',description:'Investimento GraceVision 11/12',amount:1331.81,date:'2026-03-10',category:'Investimentos',type:'expense',accountId:'acc1',confirmed:false},
+    {id:'t32',description:'Cartão C&A',amount:850,date:'2026-03-16',category:'Compras',type:'expense',accountId:'acc1',confirmed:false},
+    {id:'t33',description:'Faculdade Yonara',amount:550,date:'2026-03-10',category:'Educação',type:'expense',accountId:'acc1',confirmed:false},
+    {id:'t34',description:'Mentoria Renan Sakata',amount:293,date:'2026-03-22',category:'Educação',type:'expense',accountId:'acc1',confirmed:false},
+    {id:'t35',description:'Plano de Saúde',amount:350,date:'2026-03-20',category:'Saúde',type:'expense',accountId:'acc1',confirmed:false},
+    {id:'t36',description:'Cartão Riachuelo Yonara',amount:256.47,date:'2026-03-25',category:'Roupas',type:'expense',accountId:'acc1',confirmed:false},
+    {id:'t37',description:'Guia INSS (Yonara)',amount:178.31,date:'2026-03-10',category:'Impostos',type:'expense',accountId:'acc1',confirmed:false},
+    {id:'t38',description:'Claro Móvel',amount:98.84,date:'2026-03-10',category:'Assinaturas',type:'expense',accountId:'acc1',confirmed:false},
+    {id:'t39',description:'Claro Residencial',amount:49.90,date:'2026-03-10',category:'Assinaturas',type:'expense',accountId:'acc1',confirmed:false},
+    {id:'t40',description:'Google Drive',amount:24.90,date:'2026-03-10',category:'Assinaturas',type:'expense',accountId:'acc1',confirmed:false},
+    // === RECEITAS / DESPESAS FEVEREIRO ===
+    {id:'t41',description:'Receita GV — Fevereiro',amount:19819.07,date:'2026-02-03',category:'Grace Vision',type:'income',accountId:'acc1',confirmed:true},
+    {id:'t42',description:'Despesas Pessoais — Fevereiro',amount:17265.43,date:'2026-02-28',category:'Pessoal',type:'expense',accountId:'acc1',confirmed:true},
+    // === RECEITAS / DESPESAS JANEIRO ===
+    {id:'t43',description:'Receita GV — Janeiro',amount:21904,date:'2026-01-03',category:'Grace Vision',type:'income',accountId:'acc1',confirmed:true},
+    {id:'t44',description:'Despesas Pessoais — Janeiro',amount:18037.74,date:'2026-01-28',category:'Pessoal',type:'expense',accountId:'acc1',confirmed:true}
+  ])
+  LS.set('installments', [
+    {id:'i1',name:'Parcela Corolla XEI 2018',amount:2473.05,start:'Set/2025',current:7,total:48,end:'Ago/2029',remaining:101395.05,type:'Pessoal'},
+    {id:'i2',name:'Investimento GV (Yonara)',amount:1331.81,start:'Abr/2025',current:11,total:12,end:'Abr/2026',remaining:3995.43,type:'Empresarial'},
+    {id:'i3',name:'Mentoria Eduardo (Impactur)',amount:1119.91,start:'Ago/2025',current:7,total:12,end:'Jul/2026',remaining:7839.37,type:'Empresarial'},
+    {id:'i4',name:'JIM.COM Yonara Helen',amount:230,start:'Nov/2025',current:4,total:10,end:'Ago/2026',remaining:1380,type:'Pessoal'},
+    {id:'i5',name:'MercadoLivre',amount:154.09,start:'Jan/2026',current:2,total:10,end:'Out/2026',remaining:1232.72,type:'Pessoal'},
+    {id:'i6',name:'Casas Bahia (1)',amount:122.89,start:'Mai/2025',current:10,total:10,end:'Mar/2026',remaining:0,type:'Pessoal'},
+    {id:'i7',name:'Casas Bahia (2)',amount:95.35,start:'Set/2025',current:6,total:10,end:'Jun/2026',remaining:381.40,type:'Pessoal'},
+    {id:'i8',name:'SHOPEE MREstofados',amount:74.46,start:'Fev/2026',current:1,total:12,end:'Jan/2027',remaining:819.06,type:'Pessoal'},
+    {id:'i9',name:'GOCASE',amount:29.18,start:'Ago/2025',current:7,total:12,end:'Jul/2026',remaining:145.90,type:'Pessoal'},
+    {id:'i10',name:'Anuidade C&A',amount:29.10,start:'Fev/2026',current:2,total:12,end:'Jan/2027',remaining:291,type:'Pessoal'},
+    {id:'i11',name:'O BOTICÁRIO',amount:20.58,start:'Set/2025',current:6,total:10,end:'Jun/2026',remaining:82.32,type:'Pessoal'},
+    {id:'i12',name:'Casas Bahia (3)',amount:13.85,start:'Set/2025',current:6,total:12,end:'Ago/2026',remaining:83.10,type:'Pessoal'}
+  ])
+  LS.set('indicators', {
+    receitaBruta: 19175,
+    despesaTotal: 10854.07,
+    resultadoLiquido: 8320.93,
+    margemLiquida: 0.4339,
+    receitaGV: 17200,
+    lucroGV: 13863.39,
+    clientesAtivos: 16,
+    ticketMedio: 1137.50,
+    saldoNubank: 23564.27,
+    mesesReserva: 2.17,
+    metas: [
+      {name:'Receita mensal GV',target:20000,current:17200,status:'Em progresso'},
+      {name:'Faturamento anual GV',target:240000,current:206400,status:'Em progresso'},
+      {name:'Reserva de emergência (6 meses)',target:65124.42,current:23564.27,status:'Em progresso'},
+      {name:'Reduzir despesas pessoais',target:6000,current:7517.46,status:'Em progresso'},
+      {name:'N° de clientes',target:20,current:16,status:'Em progresso'}
+    ]
+  })
+  localStorage.setItem('gv_seed_version', SEED_VERSION)
+}
+
+// ===== CLOUD INITIALIZATION (NON-BLOCKING) =====
+async function initFromSupabase() {
+  if (!supabaseClient) return;
+  try {
+    const { data, error } = await supabaseClient.from('app_data').select('key, data')
+    if (error) throw error
+    if (data && data.length > 0) {
+      // Cloud has data — load it into localStorage and refresh UI
+      data.forEach(row => {
+        localStorage.setItem('gv_' + row.key, JSON.stringify(row.data))
+      })
+      console.log('✅ Dados carregados do Supabase:', data.length, 'registros')
+      render() // Refresh UI with cloud data
+    } else {
+      // Cloud is empty — push local data to cloud
+      console.log('☁️ Supabase vazio, migrando dados locais...')
+      const keys = ['accounts','clients','transactions','installments','indicators']
+      for (const k of keys) {
+        const v = LS.get(k, [])
+        // Simple check if it has entries before trying to push
+        if (v && Object.keys(v).length > 0) {
+          await LS._syncToCloud(k, v)
+        }
+      }
+      console.log('✅ Dados migrados para o Supabase')
+    }
+  } catch(e) {
+    console.warn('⚠️ Falha ao conectar ao Supabase:', e)
+  }
+}
+
+// Start the app after all declarations
+function startApp() {
+  seedIfEmpty() // Always ensure local data is ready first
+  render()      // Render immediately from local cache (FAST)
+  initFromSupabase() // Sync with cloud in the background
+}
+
+// ============================================================
+//   NAVIGATION
+// ============================================================
+let currentPage = 'dashboard'
+let lineChart, doughnutChart, projChart
+let txViewMonth = new Date().getMonth()
+let txViewYear = new Date().getFullYear()
+
+function navigate(page) {
+  currentPage = page
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.page === page))
+  document.querySelector('.sidebar').classList.remove('open')
+  render()
+}
+
+function render() {
+  const mc = document.getElementById('main-content')
+  // Destroy old charts
+  if(lineChart){lineChart.destroy();lineChart=null}
+  if(doughnutChart){doughnutChart.destroy();doughnutChart=null}
+  if(projChart){projChart.destroy();projChart=null}
+
+  switch(currentPage) {
+    case 'dashboard': mc.innerHTML = renderDashboard(); initCharts(); break
+    case 'transactions': mc.innerHTML = renderTransactions(); break
+    case 'clients': mc.innerHTML = renderClients(); break
+    case 'planning': mc.innerHTML = renderPlanning(); break
+    case 'accounts': mc.innerHTML = renderAccounts(); break
+    case 'projections': mc.innerHTML = renderProjections(); initProjectionChart(); break
+  }
+}
+
+// ============================================================
+//   DASHBOARD
+// ============================================================
+function renderDashboard() {
+  const accounts = LS.get('accounts',[])
+  const txs = LS.get('transactions',[])
+  const clients = LS.get('clients',[])
+  const installments = LS.get('installments',[])
+
+  const totalBalance = accounts.reduce((a,c) => a+c.balance, 0)
+  const now = new Date()
+  const month = now.getMonth()
+  const year = now.getFullYear()
+  const monthTxs = txs.filter(t => { const d = new Date(t.date); return d.getMonth()===month && d.getFullYear()===year })
+  const confirmedIncome = monthTxs.filter(t=>t.type==='income'&&t.confirmed).reduce((a,t)=>a+t.amount,0)
+  const pendingIncome = monthTxs.filter(t=>t.type==='income'&&!t.confirmed).reduce((a,t)=>a+t.amount,0)
+  const confirmedExpense = monthTxs.filter(t=>t.type==='expense'&&t.confirmed).reduce((a,t)=>a+t.amount,0)
+  const pendingExpense = monthTxs.filter(t=>t.type==='expense'&&!t.confirmed).reduce((a,t)=>a+t.amount,0)
+  const activeClients = clients.filter(c=>c.status==='Ativo').length
+  const monthlyDebt = installments.reduce((a,i)=>a+i.amount,0)
+  const pendingCount = monthTxs.filter(t=>!t.confirmed).length
+
+  // Recent txs (last 8)
+  const recent = [...txs].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8)
+
+  // Expense by category (confirmed only for accuracy)
+  const catMap = {}
+  monthTxs.filter(t=>t.type==='expense').forEach(t => { catMap[t.category] = (catMap[t.category]||0) + t.amount })
+
+  return `
+    <div class="page-header anim">
+      <div>
+        <h1>Bem-vindo, Dário 👋</h1>
+        <p>Resumo financeiro de ${now.toLocaleDateString('pt-BR',{month:'long',year:'numeric'})}</p>
+      </div>
+      <button class="btn btn-primary" onclick="openTransactionModal()">+ Novo Lançamento</button>
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr)">
+      <div class="card kpi anim anim-d1">
+        <div class="kpi-label"><span class="kpi-dot" style="background:var(--accent)"></span>Saldo em Conta</div>
+        <div class="kpi-value">${currency(totalBalance)}</div>
+        <div class="kpi-sub">${accounts.length} conta(s)</div>
+      </div>
+      <div class="card kpi anim anim-d2">
+        <div class="kpi-label"><span class="kpi-dot" style="background:var(--green)"></span>Receitas do Mês</div>
+        <div class="kpi-value" style="color:var(--green)">${currency(confirmedIncome + pendingIncome)}</div>
+        <div class="kpi-sub">✅ ${currency(confirmedIncome)} · ⏳ ${currency(pendingIncome)}</div>
+      </div>
+      <div class="card kpi anim anim-d3">
+        <div class="kpi-label"><span class="kpi-dot" style="background:var(--red)"></span>Despesas do Mês</div>
+        <div class="kpi-value" style="color:var(--red)">${currency(confirmedExpense + pendingExpense)}</div>
+        <div class="kpi-sub">✅ ${currency(confirmedExpense)} · ⏳ ${currency(pendingExpense)}</div>
+      </div>
+      <div class="card kpi anim anim-d4">
+        <div class="kpi-label"><span class="kpi-dot" style="background:var(--cyan)"></span>Clientes Ativos</div>
+        <div class="kpi-value">${activeClients}</div>
+        <div class="kpi-sub">Parcelas/mês: ${currency(monthlyDebt)}</div>
+      </div>
+      <div class="card kpi anim anim-d1">
+        <div class="kpi-label"><span class="kpi-dot" style="background:var(--amber)"></span>Pendentes</div>
+        <div class="kpi-value" style="color:var(--amber)">${pendingCount}</div>
+        <div class="kpi-sub">Saldo ✅: ${currency(confirmedIncome - confirmedExpense)}</div>
+      </div>
+    </div>
+
+    <div class="chart-grid">
+      <div class="card anim anim-d2">
+        <div class="chart-title">Receitas vs Despesas (últimos 6 meses)</div>
+        <canvas id="lineChart" height="120"></canvas>
+      </div>
+      <div class="card anim anim-d3">
+        <div class="chart-title">Despesas por Categoria</div>
+        <canvas id="doughnutChart"></canvas>
+      </div>
+    </div>
+
+    <div class="card anim anim-d4">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+        <div class="chart-title" style="margin:0">Últimas Transações</div>
+        <button class="btn btn-outline btn-sm" onclick="navigate('transactions')">Ver todas →</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th><th>Status</th></tr></thead>
+          <tbody>
+            ${recent.map(tx => `
+              <tr style="${!tx.confirmed ? 'opacity:.6' : ''}">
+                <td>${fmtDate(tx.date)}</td>
+                <td>${tx.description}</td>
+                <td><span class="badge ${tx.type==='income'?'badge-green':'badge-red'}">${tx.category}</span></td>
+                <td style="color:${tx.type==='income'?'var(--green)':'var(--red)'}; font-weight:600">
+                  ${tx.type==='income'?'+':'−'} ${currency(tx.amount)}
+                </td>
+                <td><span class="badge ${tx.confirmed?'badge-green':'badge-amber'}">${tx.confirmed ? (tx.type==='income'?'Recebido':'Debitado') : '⏳ Pendente'}</span></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card anim anim-d4" style="margin-top:1.25rem">
+      <div class="chart-title">Metas Financeiras 2026</div>
+      ${(()=>{
+        const tx = LS.get('transactions', [])
+        const cli = LS.get('clients', [])
+        const acc = LS.get('accounts', [])
+        
+        let recMensal = 0
+        let fatAnual = 0
+        let cliAtivos = 0
+        cli.forEach(c => {
+          if(c.status === 'Ativo' && c.category === 'Grace Vision') {
+            cliAtivos++
+            recMensal += Number(c.monthlyValue || 0)
+            fatAnual += Number(c.annualRevenue || (c.monthlyValue * 12))
+          }
+        })
+
+        let resEmerg = 0
+        acc.forEach(a => resEmerg += Number(a.balance || 0))
+
+        let despPessoal = 0
+        const currMonth = new Date().getMonth()
+        const currYear = new Date().getFullYear()
+        tx.forEach(t => {
+          const d = new Date(t.date)
+          if(d.getMonth() === currMonth && d.getFullYear() === currYear && t.type === 'Saída') {
+            // Soma como despesa pessoal o que não for estritamente custo de agência
+            if(t.category !== 'Serviço prestado' && t.category !== 'Imposto' && t.category !== 'Marketing') {
+              despPessoal += Number(t.amount || 0)
+            }
+          }
+        })
+
+        const metas = [
+          {name:'Receita mensal GV', target:20000, current:recMensal, status:'Em progresso'},
+          {name:'Faturamento anual GV', target:240000, current:fatAnual, status:'Em progresso'},
+          {name:'Reserva de emergência (6 meses)', target:65124.42, current:resEmerg, status:'Em progresso'},
+          {name:'Reduzir despesas pessoais', target:6000, current:despPessoal, status:'Em progresso'},
+          {name:'N° de clientes', target:20, current:cliAtivos, status:'Em progresso'}
+        ]
+
+        return metas.map(m => {
+          const pct = Math.min(100, Math.round((m.current / m.target) * 100))
+          return `
+          <div style="margin-bottom:1rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.35rem">
+              <span style="font-size:.85rem;font-weight:500">${m.name}</span>
+              <span style="font-size:.8rem;color:var(--text3)">${typeof m.target==='number' && m.target>100 ? currency(m.current)+' / '+currency(m.target) : m.current+' / '+m.target}</span>
+            </div>
+            <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+          </div>`
+        }).join('')
+      })()}
+    </div>
+  `
+}
+
+function initCharts() {
+  const txs = LS.get('transactions',[])
+  const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+  const now = new Date()
+
+  // Last 6 months income & expense
+  const incomeData = [], expenseData = [], labels = []
+  for (let i = 5; i >= 0; i--) {
+    const m = (now.getMonth() - i + 12) % 12
+    const y = now.getFullYear() - (now.getMonth()-i < 0 ? 1 : 0)
+    labels.push(months[m])
+    const mTxs = txs.filter(t => { const d = new Date(t.date); return d.getMonth()===m && d.getFullYear()===y })
+    incomeData.push(mTxs.filter(t=>t.type==='income').reduce((a,t)=>a+t.amount,0))
+    expenseData.push(mTxs.filter(t=>t.type==='expense').reduce((a,t)=>a+t.amount,0))
+  }
+
+  const chartDefaults = { color: 'rgba(255,255,255,.6)' }
+  const gridColor = 'rgba(255,255,255,.06)'
+
+  const lineCtx = document.getElementById('lineChart')
+  if (lineCtx) {
+    lineChart = new Chart(lineCtx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label:'Receitas', data:incomeData, backgroundColor:'rgba(34,197,94,.6)', borderRadius:6, barPercentage:.4 },
+          { label:'Despesas', data:expenseData, backgroundColor:'rgba(239,68,68,.5)', borderRadius:6, barPercentage:.4 }
+        ]
+      },
+      options: {
+        responsive:true,
+        plugins:{legend:{position:'top',labels:chartDefaults}},
+        scales:{
+          x:{ticks:chartDefaults,grid:{color:gridColor}},
+          y:{ticks:{...chartDefaults,callback:v=>currency(v)},grid:{color:gridColor}}
+        }
+      }
+    })
+  }
+
+  // Doughnut
+  const catMap = {}
+  const month = now.getMonth(), year = now.getFullYear()
+  txs.filter(t => { const d=new Date(t.date); return d.getMonth()===month && d.getFullYear()===year && t.type==='expense' })
+    .forEach(t => { catMap[t.category] = (catMap[t.category]||0)+t.amount })
+
+  const dCtx = document.getElementById('doughnutChart')
+  if (dCtx) {
+    const cats = Object.keys(catMap)
+    const colors = ['#ef4444','#f59e0b','#22c55e','#3b82f6','#8b5cf6','#06b6d4','#ec4899','#f97316']
+    doughnutChart = new Chart(dCtx, {
+      type: 'doughnut',
+      data: {
+        labels: cats,
+        datasets: [{ data: cats.map(c=>catMap[c]), backgroundColor: colors.slice(0,cats.length), borderWidth:0 }]
+      },
+      options: {
+        responsive:true,
+        cutout:'65%',
+        plugins:{legend:{position:'bottom',labels:{...chartDefaults,padding:12,usePointStyle:true,pointStyleWidth:8}}}
+      }
+    })
+  }
+}
+
+// ============================================================
+//   TRANSACTIONS
+// ============================================================
+function renderTransactions() {
+  const allTxs = LS.get('transactions',[])
+  const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
+  const monthLabel = monthNames[txViewMonth] + ' ' + txViewYear
+
+  // Filter by selected month
+  const txs = allTxs.filter(t => {
+    const d = new Date(t.date)
+    return d.getMonth() === txViewMonth && d.getFullYear() === txViewYear
+  })
+  const sorted = [...txs].sort((a,b)=>b.date.localeCompare(a.date))
+
+  const confirmedIncome = txs.filter(t=>t.type==='income'&&t.confirmed).reduce((a,t)=>a+t.amount,0)
+  const pendingIncome = txs.filter(t=>t.type==='income'&&!t.confirmed).reduce((a,t)=>a+t.amount,0)
+  const confirmedExpense = txs.filter(t=>t.type==='expense'&&t.confirmed).reduce((a,t)=>a+t.amount,0)
+  const pendingExpense = txs.filter(t=>t.type==='expense'&&!t.confirmed).reduce((a,t)=>a+t.amount,0)
+  const pendingCount = txs.filter(t=>!t.confirmed).length
+
+  return `
+    <div class="page-header anim">
+      <div><h1>Lançamentos</h1><p>Gerencie todas as suas receitas e despesas</p></div>
+      <button class="btn btn-primary" onclick="openTransactionModal()">+ Novo Lançamento</button>
+    </div>
+
+    <div class="card anim" style="display:flex;align-items:center;justify-content:center;gap:1.5rem;padding:1rem 1.5rem;margin-bottom:1.25rem">
+      <button class="btn btn-outline btn-sm" onclick="changeTxMonth(-1)" style="font-size:1.1rem;padding:.4rem .8rem">◀</button>
+      <span style="font-size:1.15rem;font-weight:600;min-width:180px;text-align:center">📅 ${monthLabel}</span>
+      <button class="btn btn-outline btn-sm" onclick="changeTxMonth(1)" style="font-size:1.1rem;padding:.4rem .8rem">▶</button>
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="card kpi anim anim-d1">
+        <div class="kpi-label"><span class="kpi-dot" style="background:var(--green)"></span>Receitas do Mês</div>
+        <div class="kpi-value" style="color:var(--green)">${currency(confirmedIncome + pendingIncome)}</div>
+        <div class="kpi-sub">✅ ${currency(confirmedIncome)} · ⏳ ${currency(pendingIncome)}</div>
+      </div>
+      <div class="card kpi anim anim-d2">
+        <div class="kpi-label"><span class="kpi-dot" style="background:var(--red)"></span>Despesas do Mês</div>
+        <div class="kpi-value" style="color:var(--red)">${currency(confirmedExpense + pendingExpense)}</div>
+        <div class="kpi-sub">✅ ${currency(confirmedExpense)} · ⏳ ${currency(pendingExpense)}</div>
+      </div>
+      <div class="card kpi anim anim-d3">
+        <div class="kpi-label"><span class="kpi-dot" style="background:var(--accent)"></span>Saldo do Mês</div>
+        <div class="kpi-value" style="color:${(confirmedIncome+pendingIncome-confirmedExpense-pendingExpense)>=0?'var(--green)':'var(--red)'}">${currency((confirmedIncome+pendingIncome)-(confirmedExpense+pendingExpense))}</div>
+        <div class="kpi-sub">Confirmado: ${currency(confirmedIncome - confirmedExpense)}</div>
+      </div>
+      <div class="card kpi anim anim-d4">
+        <div class="kpi-label"><span class="kpi-dot" style="background:var(--amber)"></span>Pendentes</div>
+        <div class="kpi-value" style="color:var(--amber)">${pendingCount}</div>
+        <div class="kpi-sub">lançamento(s) a confirmar</div>
+      </div>
+    </div>
+
+    <div class="card anim anim-d3">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            ${sorted.map(tx => {
+              const statusLabel = tx.confirmed
+                ? (tx.type==='income' ? 'Recebido' : 'Debitado')
+                : (tx.type==='income' ? 'A receber' : 'A debitar')
+              const statusIcon = tx.confirmed ? '✅' : '⏳'
+              return `
+              <tr style="${!tx.confirmed ? 'opacity:.75' : ''}">
+                <td>${fmtDate(tx.date)}</td>
+                <td style="font-weight:500">${tx.description}</td>
+                <td><span class="badge ${tx.type==='income'?'badge-green':'badge-red'}">${tx.category}</span></td>
+                <td style="color:${tx.type==='income'?'var(--green)':'var(--red)'};font-weight:600">
+                  ${tx.type==='income'?'+':'−'} ${currency(tx.amount)}
+                </td>
+                <td>
+                  <button class="btn btn-sm ${tx.confirmed?'badge-green':'badge-amber'}" style="cursor:pointer;border:none;padding:.3rem .6rem;border-radius:6px;font-size:.75rem" onclick="toggleConfirm('${tx.id}')">
+                    ${statusIcon} ${statusLabel}
+                  </button>
+                </td>
+                <td style="white-space:nowrap">
+                  <button class="btn btn-outline btn-sm" onclick='openTransactionModal(${JSON.stringify(tx)})' title="Editar">✎</button>
+                  <button class="btn btn-danger btn-sm" onclick="deleteTransaction('${tx.id}')">✕</button>
+                </td>
+              </tr>`
+            }).join('')}
+          </tbody>
+        </table>
+        ${sorted.length===0 ? '<div class="empty-state"><p>Nenhum lançamento em '+monthLabel+'.</p></div>' : ''}
+      </div>
+    </div>
+  `
+}
+
+function changeTxMonth(dir) {
+  txViewMonth += dir
+  if (txViewMonth > 11) { txViewMonth = 0; txViewYear++ }
+  if (txViewMonth < 0) { txViewMonth = 11; txViewYear-- }
+  render()
+}
+
+function openTransactionModal(prefill) {
+  const accounts = LS.get('accounts',[])
+  const m = document.getElementById('modal-content')
+  const isEdit = !!prefill
+  m.innerHTML = `
+    <h3>${isEdit?'✎ Editar':'Novo'} Lançamento</h3>
+    <form onsubmit="saveTransaction(event, '${isEdit ? prefill.id : ''}')">
+      <div class="form-group">
+        <div class="radio-group">
+          <label><input type="radio" name="txtype" value="expense" ${!prefill||prefill.type==='expense'?'checked':''}> Despesa</label>
+          <label><input type="radio" name="txtype" value="income" ${prefill&&prefill.type==='income'?'checked':''}> Receita</label>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Descrição</label>
+          <input id="tx-desc" required value="${prefill?prefill.description:''}">
+        </div>
+        <div class="form-group">
+          <label>Valor (R$)</label>
+          <input id="tx-amount" type="number" step="0.01" min="0" required value="${prefill?prefill.amount:''}">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Data</label>
+          <input id="tx-date" type="date" required value="${prefill?prefill.date:new Date().toISOString().split('T')[0]}">
+        </div>
+        <div class="form-group">
+          <label>Categoria</label>
+          <input id="tx-cat" required placeholder="Ex: Casa, Saúde..." value="${prefill?prefill.category:''}">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Conta</label>
+          <select id="tx-acc">${accounts.map(a=>`<option value="${a.id}" ${prefill&&prefill.accountId===a.id?'selected':''}>${a.name}</option>`).join('')}</select>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="tx-confirmed">
+            <option value="true" ${prefill&&prefill.confirmed?'selected':''}>✅ Confirmado</option>
+            <option value="false" ${!prefill||!prefill.confirmed?'selected':''}>⏳ Pendente</option>
+          </select>
+        </div>
+      </div>
+      <div style="border-top:1px solid var(--border);margin-top:1rem;padding-top:1rem">
+        <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;margin-bottom:.75rem">
+          <input type="checkbox" id="tx-recur" onchange="document.getElementById('recur-options').style.display=this.checked?'block':'none'">
+          <span style="font-weight:500">🔁 ${isEdit ? 'Duplicar para frente (recorrência)' : 'Repetir lançamento'}</span>
+        </label>
+        <div id="recur-options" style="display:none">
+          <div class="form-row" style="margin-bottom:.75rem">
+            <div class="form-group">
+              <label>Frequência</label>
+              <select id="tx-freq">
+                <option value="weekly">Semanal (7 dias)</option>
+                <option value="biweekly">Quinzenal (15 dias)</option>
+                <option value="monthly" selected>Mensal</option>
+              </select>
+            </div>
+            <div class="form-group" id="reps-group">
+              <label>Quantas repetições</label>
+              <input id="tx-reps" type="number" min="1" max="52" value="3" placeholder="Ex: 12">
+            </div>
+          </div>
+          <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
+            <input type="checkbox" id="tx-noend" onchange="document.getElementById('reps-group').style.display=this.checked?'none':'block'">
+            <span style="font-size:.875rem">♾️ Receita/Despesa fixa (sem prazo definido) — gera 12 meses à frente</span>
+          </label>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${isEdit?'Atualizar':'Salvar'}</button>
+      </div>
+    </form>
+  `
+  openModal()
+}
+
+function saveTransaction(e, editId) {
+  e.preventDefault()
+  const txs = LS.get('transactions',[])
+  const type = document.querySelector('input[name=txtype]:checked').value
+  const data = {
+    description: document.getElementById('tx-desc').value,
+    amount: parseFloat(document.getElementById('tx-amount').value),
+    date: document.getElementById('tx-date').value,
+    category: document.getElementById('tx-cat').value,
+    type,
+    accountId: document.getElementById('tx-acc').value,
+    confirmed: document.getElementById('tx-confirmed').value === 'true'
+  }
+
+  // Check for recurrence
+  const recurCheckbox = document.getElementById('tx-recur')
+  const isRecurring = recurCheckbox && recurCheckbox.checked
+
+  if (editId) {
+    // Update the existing transaction
+    const idx = txs.findIndex(t => t.id === editId)
+    if (idx >= 0) txs[idx] = { ...txs[idx], ...data }
+  }
+
+  if (isRecurring) {
+    const freq = document.getElementById('tx-freq').value
+    const noEnd = document.getElementById('tx-noend')
+    const reps = (noEnd && noEnd.checked) ? 12 : (parseInt(document.getElementById('tx-reps').value) || 1)
+    const startDate = new Date(data.date + 'T12:00:00')
+    const startIdx = editId ? 1 : 0 // If editing, start from 1 (skip original, already updated)
+    const totalCount = reps + (editId ? 0 : 1) // total entries to create
+
+    for (let i = startIdx; i <= reps; i++) {
+      const d = new Date(startDate)
+      if (freq === 'weekly') d.setDate(d.getDate() + (i * 7))
+      else if (freq === 'biweekly') d.setDate(d.getDate() + (i * 15))
+      else d.setMonth(d.getMonth() + i)
+
+      const dateStr = d.toISOString().split('T')[0]
+
+      txs.push({
+        ...data,
+        id: uid(),
+        date: dateStr,
+        description: data.description.replace(/ \(\d+\/\d+\)$/, ''),
+        confirmed: false,
+        recurrenceGroup: data.description.replace(/ \(\d+\/\d+\)$/, ''),
+        recurrenceFreq: freq
+      })
+    }
+  } else if (!editId) {
+    // Simple new transaction without recurrence
+    data.id = uid()
+    txs.push(data)
+  }
+
+  LS.set('transactions', txs)
+  closeModal()
+  render()
+}
+
+function toggleConfirm(id) {
+  const txs = LS.get('transactions',[])
+  const idx = txs.findIndex(t=>t.id===id)
+  if(idx>=0) {
+    const wasConfirmed = txs[idx].confirmed
+    txs[idx].confirmed = !wasConfirmed
+    LS.set('transactions', txs)
+
+    // Auto-update installments when confirming an expense
+    if (!wasConfirmed && txs[idx].type === 'expense') {
+      updateInstallmentFromTransaction(txs[idx])
+    }
+    // Revert installment if un-confirming an expense
+    if (wasConfirmed && txs[idx].type === 'expense') {
+      revertInstallmentFromTransaction(txs[idx])
+    }
+  }
+  render()
+}
+
+function updateInstallmentFromTransaction(tx) {
+  const installments = LS.get('installments',[])
+  const desc = tx.description.toLowerCase()
+  const matchIdx = installments.findIndex(inst => {
+    const instName = inst.name.toLowerCase()
+    // Match if transaction description contains the installment name or vice-versa
+    return desc.includes(instName) || instName.includes(desc.split(' ')[0])
+      || (desc.includes('corolla') && instName.includes('corolla'))
+      || (desc.includes('mentoria eduardo') && instName.includes('mentoria eduardo'))
+      || (desc.includes('investimento gracevision') && instName.includes('investimento gv'))
+      || (desc.includes('casas bahia') && instName.includes('casas bahia'))
+      || (desc.includes('jim.com') && instName.includes('jim.com'))
+      || (desc.includes('mercadolivre') && instName.includes('mercadolivre'))
+      || (desc.includes('shopee') && instName.includes('shopee'))
+      || (desc.includes('gocase') && instName.includes('gocase'))
+      || (desc.includes('boticário') && instName.includes('boticário'))
+      || (desc.includes('anuidade c&a') && instName.includes('anuidade c&a'))
+  })
+  if (matchIdx >= 0) {
+    const inst = installments[matchIdx]
+    if (inst.current < inst.total) {
+      inst.current += 1
+      inst.remaining = inst.amount * (inst.total - inst.current)
+      if (inst.remaining < 0) inst.remaining = 0
+      LS.set('installments', installments)
+    }
+  }
+}
+
+function revertInstallmentFromTransaction(tx) {
+  const installments = LS.get('installments',[])
+  const desc = tx.description.toLowerCase()
+  const matchIdx = installments.findIndex(inst => {
+    const instName = inst.name.toLowerCase()
+    return desc.includes(instName) || instName.includes(desc.split(' ')[0])
+      || (desc.includes('corolla') && instName.includes('corolla'))
+      || (desc.includes('mentoria eduardo') && instName.includes('mentoria eduardo'))
+      || (desc.includes('investimento gracevision') && instName.includes('investimento gv'))
+      || (desc.includes('casas bahia') && instName.includes('casas bahia'))
+      || (desc.includes('jim.com') && instName.includes('jim.com'))
+      || (desc.includes('mercadolivre') && instName.includes('mercadolivre'))
+      || (desc.includes('shopee') && instName.includes('shopee'))
+      || (desc.includes('gocase') && instName.includes('gocase'))
+      || (desc.includes('boticário') && instName.includes('boticário'))
+      || (desc.includes('anuidade c&a') && instName.includes('anuidade c&a'))
+  })
+  if (matchIdx >= 0) {
+    const inst = installments[matchIdx]
+    if (inst.current > 0) {
+      inst.current -= 1
+      inst.remaining = inst.amount * (inst.total - inst.current)
+      LS.set('installments', installments)
+    }
+  }
+}
+
+function deleteTransaction(id) {
+  if(!confirm('Deseja excluir este lançamento?')) return
+  const txs = LS.get('transactions',[])
+  const tx = txs.find(t=>t.id===id)
+  if(tx) {
+    const accounts = LS.get('accounts',[])
+    const idx = accounts.findIndex(a=>a.id===tx.accountId)
+    if(idx>=0){ accounts[idx].balance += tx.type==='income' ? -tx.amount : tx.amount; LS.set('accounts',accounts) }
+  }
+  LS.set('transactions', txs.filter(t=>t.id!==id))
+  render()
+}
+
+// ============================================================
+//   CLIENTS
+// ============================================================
+function renderClients() {
+  const clients = LS.get('clients',[])
+  const active = clients.filter(c=>c.status==='Ativo')
+  const totalMonthly = active.reduce((a,c)=>a+c.monthlyValue,0)
+
+  return `
+    <div class="page-header anim">
+      <div><h1>Clientes</h1><p>Gerencie seus clientes recorrentes da GraceVision</p></div>
+      <button class="btn btn-primary" onclick="openClientModal()">+ Novo Cliente</button>
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="card kpi anim anim-d1">
+        <div class="kpi-label"><span class="kpi-dot" style="background:var(--green)"></span>Clientes Ativos</div>
+        <div class="kpi-value">${active.length}</div>
+      </div>
+      <div class="card kpi anim anim-d2">
+        <div class="kpi-label"><span class="kpi-dot" style="background:var(--accent)"></span>Receita Mensal</div>
+        <div class="kpi-value">${currency(totalMonthly)}</div>
+      </div>
+      <div class="card kpi anim anim-d3">
+        <div class="kpi-label"><span class="kpi-dot" style="background:var(--cyan)"></span>Receita Anual Projetada</div>
+        <div class="kpi-value">${currency(totalMonthly*12)}</div>
+      </div>
+    </div>
+
+    <div class="card anim anim-d3">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Cliente</th><th>Valor/Mês</th><th>Dia Pgto</th><th>Status</th><th>Receita Anual</th><th></th></tr></thead>
+          <tbody>
+            ${clients.map(c => `
+              <tr>
+                <td style="font-weight:500">${c.name}</td>
+                <td>${currency(c.monthlyValue)}</td>
+                <td>Dia ${c.payDay}</td>
+                <td><span class="badge ${c.status==='Ativo'?'badge-green':'badge-amber'}">${c.status}</span></td>
+                <td>${currency(c.annualRevenue || c.monthlyValue*12)}</td>
+                <td style="display:flex;gap:.35rem">
+                  <button class="btn btn-outline btn-sm" onclick='openClientModal(${JSON.stringify(c)})'>✎</button>
+                  <button class="btn btn-danger btn-sm" onclick="deleteClient('${c.id}')">✕</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        ${clients.length===0 ? '<div class="empty-state"><p>Nenhum cliente cadastrado.</p></div>' : ''}
+      </div>
+    </div>
+  `
+}
+
+function openClientModal(prefill) {
+  const m = document.getElementById('modal-content')
+  m.innerHTML = `
+    <h3>${prefill?'Editar':'Novo'} Cliente</h3>
+    <form onsubmit="saveClient(event, '${prefill?prefill.id:''}')">
+      <div class="form-group">
+        <label>Nome do Cliente</label>
+        <input id="cl-name" required value="${prefill?prefill.name:''}">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Valor Mensal (R$)</label>
+          <input id="cl-value" type="number" step="0.01" min="0" required value="${prefill?prefill.monthlyValue:''}">
+        </div>
+        <div class="form-group">
+          <label>Dia de Pagamento</label>
+          <input id="cl-day" required placeholder="Ex: 03, 10, 15" value="${prefill?prefill.payDay:''}">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Categoria</label>
+          <input id="cl-cat" value="${prefill?prefill.category||'Grace Vision':'Grace Vision'}">
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="cl-status">
+            <option value="Ativo" ${!prefill||prefill.status==='Ativo'?'selected':''}>Ativo</option>
+            <option value="Inativo" ${prefill&&prefill.status==='Inativo'?'selected':''}>Inativo</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar</button>
+      </div>
+    </form>
+  `
+  openModal()
+}
+
+function saveClient(e, editId) {
+  e.preventDefault()
+  const clients = LS.get('clients',[])
+  const data = {
+    name: document.getElementById('cl-name').value,
+    monthlyValue: parseFloat(document.getElementById('cl-value').value),
+    payDay: document.getElementById('cl-day').value,
+    category: document.getElementById('cl-cat').value,
+    status: document.getElementById('cl-status').value,
+  }
+  data.annualRevenue = data.monthlyValue * 12
+
+  if (editId) {
+    const idx = clients.findIndex(c=>c.id===editId)
+    if(idx>=0) clients[idx] = { ...clients[idx], ...data }
+  } else {
+    clients.push({ id: uid(), ...data })
+  }
+  LS.set('clients', clients)
+  closeModal()
+  render()
+}
+
+function deleteClient(id) {
+  if(!confirm('Deseja excluir este cliente?')) return
+  LS.set('clients', LS.get('clients',[]).filter(c=>c.id!==id))
+  render()
+}
+
+// ============================================================
+//   PLANNING
+// ============================================================
+function renderPlanning() {
+  const installments = LS.get('installments',[])
+  const totalMonthly = installments.reduce((a,i)=>a+i.amount,0)
+  const totalRemaining = installments.reduce((a,i)=>a+i.remaining,0)
+
+  return `
+    <div class="page-header anim">
+      <div><h1>Parcelas e Dívidas</h1><p>Acompanhe o progresso das suas parcelas</p></div>
+      <button class="btn btn-primary" onclick="openInstallmentModal()">+ Nova Parcela</button>
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="card kpi anim anim-d1">
+        <div class="kpi-label"><span class="kpi-dot" style="background:var(--amber)"></span>Parcelas Ativas</div>
+        <div class="kpi-value">${installments.length}</div>
+      </div>
+      <div class="card kpi anim anim-d2">
+        <div class="kpi-label"><span class="kpi-dot" style="background:var(--red)"></span>Custo Mensal</div>
+        <div class="kpi-value" style="color:var(--red)">${currency(totalMonthly)}</div>
+      </div>
+      <div class="card kpi anim anim-d3">
+        <div class="kpi-label"><span class="kpi-dot" style="background:var(--accent)"></span>Saldo Devedor Total</div>
+        <div class="kpi-value">${currency(totalRemaining)}</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(350px,1fr));gap:1.25rem" class="anim anim-d3">
+      ${installments.map(inst => {
+        const pct = Math.round((inst.current/inst.total)*100)
+        return `
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem">
+            <div>
+              <h3 style="font-size:1.05rem">${inst.name}</h3>
+              <p style="color:var(--text3);font-size:.8rem;margin-top:.2rem">${inst.start} → ${inst.end}</p>
+            </div>
+            <div style="display:flex;gap:.35rem;align-items:center">
+              <span class="badge badge-blue">${inst.type}</span>
+              <button class="btn btn-outline btn-sm" onclick='openInstallmentModal(${JSON.stringify(inst)})' title="Editar">✎</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteInstallment('${inst.id}')">✕</button>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:.75rem">
+            <div>
+              <p style="color:var(--text2);font-size:.8rem">Valor/mês</p>
+              <p style="font-weight:600;font-size:1.15rem">${currency(inst.amount)}</p>
+            </div>
+            <div style="text-align:right">
+              <p style="color:var(--text2);font-size:.8rem">Progresso</p>
+              <p style="font-weight:600;font-size:1.15rem">${inst.current}/${inst.total} <span style="color:var(--text3);font-size:.8rem">(${pct}%)</span></p>
+            </div>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+          <p style="color:var(--text3);font-size:.75rem;margin-top:.5rem">Restante: ${currency(inst.remaining)}</p>
+        </div>
+      `}).join('')}
+    </div>
+    ${installments.length===0?'<div class="card empty-state"><p>Nenhuma parcela cadastrada.</p></div>':''}
+  `
+}
+
+function openInstallmentModal(prefill) {
+  const m = document.getElementById('modal-content')
+  const isEdit = !!prefill
+  m.innerHTML = `
+    <h3>${isEdit ? '✎ Editar' : 'Nova'} Parcela / Dívida</h3>
+    <form onsubmit="saveInstallment(event, '${isEdit ? prefill.id : ''}')">
+      <div class="form-group"><label>Nome / Descrição</label><input id="inst-name" required value="${isEdit ? prefill.name : ''}"></div>
+      <div class="form-row">
+        <div class="form-group"><label>Valor Mensal (R$)</label><input id="inst-amount" type="number" step="0.01" required value="${isEdit ? prefill.amount : ''}"></div>
+        <div class="form-group"><label>Total de Parcelas</label><input id="inst-total" type="number" min="1" required value="${isEdit ? prefill.total : ''}"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Parcela Atual</label><input id="inst-current" type="number" min="0" required value="${isEdit ? prefill.current : '1'}"></div>
+        <div class="form-group"><label>Tipo</label>
+          <select id="inst-type">
+            <option ${isEdit && prefill.type==='Pessoal' ? 'selected' : ''}>Pessoal</option>
+            <option ${isEdit && prefill.type==='Empresarial' ? 'selected' : ''}>Empresarial</option>
+            <option ${isEdit && prefill.type==='Empresa' ? 'selected' : ''}>Empresa</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Início (Ex: Jan/2026)</label><input id="inst-start" required value="${isEdit ? prefill.start : ''}"></div>
+        <div class="form-group"><label>Término (Ex: Dez/2027)</label><input id="inst-end" required value="${isEdit ? prefill.end : ''}"></div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">${isEdit ? 'Atualizar' : 'Salvar'}</button>
+      </div>
+    </form>
+  `
+  openModal()
+}
+
+function saveInstallment(e, editId) {
+  e.preventDefault()
+  const installments = LS.get('installments',[])
+  const amount = parseFloat(document.getElementById('inst-amount').value)
+  const total = parseInt(document.getElementById('inst-total').value)
+  const current = parseInt(document.getElementById('inst-current').value)
+  const data = {
+    name: document.getElementById('inst-name').value,
+    amount, total, current,
+    start: document.getElementById('inst-start').value,
+    end: document.getElementById('inst-end').value,
+    remaining: amount * (total - current),
+    type: document.getElementById('inst-type').value
+  }
+
+  if (editId) {
+    const idx = installments.findIndex(i => i.id === editId)
+    if (idx >= 0) installments[idx] = { ...installments[idx], ...data }
+  } else {
+    installments.push({ id: uid(), ...data })
+  }
+  LS.set('installments', installments)
+  closeModal()
+  render()
+}
+
+function deleteInstallment(id) {
+  if(!confirm('Deseja excluir esta parcela?')) return
+  LS.set('installments', LS.get('installments',[]).filter(i => i.id !== id))
+  render()
+}
+
+// ============================================================
+//   ACCOUNTS
+// ============================================================
+function renderAccounts() {
+  const accounts = LS.get('accounts',[])
+  const total = accounts.reduce((a,c)=>a+c.balance,0)
+
+  return `
+    <div class="page-header anim">
+      <div><h1>Contas Bancárias</h1><p>Gerencie suas contas e saldos</p></div>
+      <button class="btn btn-primary" onclick="openAccountModal()">+ Nova Conta</button>
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(2,1fr)">
+      <div class="card kpi anim anim-d1">
+        <div class="kpi-label"><span class="kpi-dot" style="background:var(--accent)"></span>Patrimônio Total</div>
+        <div class="kpi-value">${currency(total)}</div>
+      </div>
+      <div class="card kpi anim anim-d2">
+        <div class="kpi-label"><span class="kpi-dot" style="background:var(--cyan)"></span>Contas Cadastradas</div>
+        <div class="kpi-value">${accounts.length}</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.25rem" class="anim anim-d3">
+      ${accounts.map(acc => `
+        <div class="card" style="cursor:default">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.25rem">
+            <div>
+              <h3 style="font-size:1.05rem">${acc.name}</h3>
+              <p style="color:var(--text3);font-size:.8rem;margin-top:.2rem">${acc.bank} · ${acc.type}</p>
+            </div>
+            <div style="display:flex;gap:.35rem">
+              <button class="btn btn-outline btn-sm" onclick="openAdjustBalanceModal('${acc.id}')" title="Ajustar saldo">✎</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteAccount('${acc.id}')">✕</button>
+            </div>
+          </div>
+          <p style="color:var(--text2);font-size:.8rem">Saldo Atual</p>
+          <h2 style="font-size:1.8rem;color:${acc.balance>=0?'var(--text)':'var(--red)'}">${currency(acc.balance)}</h2>
+          ${acc.obs?`<p style="color:var(--text3);font-size:.75rem;margin-top:.5rem">${acc.obs}</p>`:''}
+        </div>
+      `).join('')}
+    </div>
+  `
+}
+
+function openAccountModal() {
+  const m = document.getElementById('modal-content')
+  m.innerHTML = `
+    <h3>Nova Conta</h3>
+    <form onsubmit="saveAccount(event)">
+      <div class="form-group"><label>Nome da Conta</label><input id="acc-name" required placeholder="Ex: Nubank Pessoal"></div>
+      <div class="form-row">
+        <div class="form-group"><label>Banco</label><input id="acc-bank" required placeholder="Ex: Nubank, Itaú"></div>
+        <div class="form-group"><label>Tipo</label>
+          <select id="acc-type"><option>Pessoal</option><option>Empresa</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Saldo Inicial (R$)</label><input id="acc-balance" type="number" step="0.01" required value="0"></div>
+        <div class="form-group"><label>Observação</label><input id="acc-obs" placeholder="Opcional"></div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar</button>
+      </div>
+    </form>
+  `
+  openModal()
+}
+
+function saveAccount(e) {
+  e.preventDefault()
+  const accounts = LS.get('accounts',[])
+  accounts.push({
+    id: uid(),
+    name: document.getElementById('acc-name').value,
+    bank: document.getElementById('acc-bank').value,
+    type: document.getElementById('acc-type').value,
+    balance: parseFloat(document.getElementById('acc-balance').value),
+    obs: document.getElementById('acc-obs').value
+  })
+  LS.set('accounts', accounts)
+  closeModal()
+  render()
+}
+
+function deleteAccount(id) {
+  if(!confirm('Deseja excluir esta conta?')) return
+  LS.set('accounts', LS.get('accounts',[]).filter(a=>a.id!==id))
+  render()
+}
+
+function openAdjustBalanceModal(accId) {
+  const accounts = LS.get('accounts',[])
+  const acc = accounts.find(a=>a.id===accId)
+  if(!acc) return
+  const m = document.getElementById('modal-content')
+  m.innerHTML = `
+    <h3>✎ Ajustar Saldo</h3>
+    <p style="color:var(--text2);margin-bottom:1.25rem">${acc.name} — Saldo atual: <strong>${currency(acc.balance)}</strong></p>
+    <form onsubmit="saveAdjustedBalance(event, '${accId}')">
+      <div class="form-group">
+        <label>Novo Saldo (R$)</label>
+        <input id="adj-balance" type="number" step="0.01" required value="${acc.balance.toFixed(2)}" style="font-size:1.2rem;font-weight:600">
+      </div>
+      <div class="form-group">
+        <label>Motivo do ajuste (opcional)</label>
+        <input id="adj-reason" placeholder="Ex: Conferência com extrato bancário">
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Confirmar Ajuste</button>
+      </div>
+    </form>
+  `
+  openModal()
+}
+
+function saveAdjustedBalance(e, accId) {
+  e.preventDefault()
+  const accounts = LS.get('accounts',[])
+  const idx = accounts.findIndex(a=>a.id===accId)
+  if(idx>=0) {
+    const oldBalance = accounts[idx].balance
+    const newBalance = parseFloat(document.getElementById('adj-balance').value)
+    const reason = document.getElementById('adj-reason').value || 'Ajuste manual de saldo'
+    accounts[idx].balance = newBalance
+    LS.set('accounts', accounts)
+
+    // Register the adjustment as a transaction for traceability
+    const diff = newBalance - oldBalance
+    if (diff !== 0) {
+      const txs = LS.get('transactions',[])
+      txs.push({
+        id: uid(),
+        description: '⚙️ ' + reason,
+        amount: Math.abs(diff),
+        date: new Date().toISOString().split('T')[0],
+        category: 'Ajuste',
+        type: diff > 0 ? 'income' : 'expense',
+        accountId: accId,
+        confirmed: true
+      })
+      LS.set('transactions', txs)
+    }
+  }
+  closeModal()
+  render()
+}
+
+// ============================================================
+//   PROJECTIONS
+// ============================================================
+function getProjectionData() {
+  const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+  const txs = LS.get('transactions',[])
+  const projYear = 2026
+
+  // Build monthly arrays from real transactions
+  const receitas = new Array(12).fill(0)
+  const despesas = new Array(12).fill(0)
+  const catBreakdown = {}
+
+  if (txs && txs.length) {
+    txs.forEach(t => {
+      const d = new Date(t.date)
+      if (isNaN(d.getTime()) || d.getFullYear() !== projYear) return
+      const mi = d.getMonth()
+      if (t.type === 'income') {
+        receitas[mi] += t.amount
+      } else {
+        despesas[mi] += t.amount
+        if (!catBreakdown[t.category]) catBreakdown[t.category] = new Array(12).fill(0)
+        catBreakdown[t.category][mi] += t.amount
+      }
+    })
+  }
+
+  // Back-calculate start balance from current account balances
+  const accounts = LS.get('accounts',[])
+  const currentBalance = accounts.reduce((a,c) => a+c.balance, 0)
+  const currentMonth = new Date().getMonth()
+  let pastNet = 0
+  for (let i = 0; i <= currentMonth; i++) pastNet += receitas[i] - despesas[i]
+  const janStart = currentBalance - pastNet
+
+  const resultado = []
+  const saldo = []
+  let accumulated = janStart
+  for (let i = 0; i < 12; i++) {
+    const net = receitas[i] - despesas[i]
+    resultado.push(net)
+    accumulated += net
+    saldo.push(accumulated)
+  }
+
+  return { months, receitas, despesas, catBreakdown, resultado, saldo, janStart }
+}
+
+function renderProjections() {
+  const p = getProjectionData()
+  const totalReceita = p.receitas.reduce((a,v)=>a+v,0)
+  const totalDespesa = p.despesas.reduce((a,v)=>a+v,0)
+  const totalResult = p.resultado.reduce((a,v)=>a+v,0)
+  const saldoFinal = p.saldo[11]
+  const currentMonth = new Date().getMonth()
+
+  return `
+    <div class="page-header anim">
+      <div>
+        <h1>Projeções 2026 📈</h1>
+        <p>Visão detalhada mês a mês — calculadas a partir dos lançamentos reais</p>
+      </div>
+    </div>
+
+    <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="card kpi anim anim-d1">
+        <div class="kpi-label"><span class="kpi-dot" style="background:var(--green)"></span>Receita Anual</div>
+        <div class="kpi-value" style="color:var(--green)">${currency(totalReceita)}</div>
+        <div class="kpi-sub">Média: ${currency(totalReceita/12)}/mês</div>
+      </div>
+      <div class="card kpi anim anim-d2">
+        <div class="kpi-label"><span class="kpi-dot" style="background:var(--red)"></span>Despesas Anuais</div>
+        <div class="kpi-value" style="color:var(--red)">${currency(totalDespesa)}</div>
+        <div class="kpi-sub">Média: ${currency(totalDespesa/12)}/mês</div>
+      </div>
+      <div class="card kpi anim anim-d3">
+        <div class="kpi-label"><span class="kpi-dot" style="background:var(--accent)"></span>Resultado Anual</div>
+        <div class="kpi-value" style="color:${totalResult>=0?'var(--green)':'var(--red)'}">${currency(totalResult)}</div>
+        <div class="kpi-sub">Margem: ${totalReceita>0?(totalResult/totalReceita*100).toFixed(1):'0'}%</div>
+      </div>
+      <div class="card kpi anim anim-d4">
+        <div class="kpi-label"><span class="kpi-dot" style="background:var(--cyan)"></span>Saldo Projetado Dez</div>
+        <div class="kpi-value">${currency(saldoFinal)}</div>
+        <div class="kpi-sub">Início: ${currency(p.janStart)}</div>
+      </div>
+    </div>
+
+    <div class="card anim anim-d2" style="margin-bottom:1.25rem">
+      <div class="chart-title">Evolução do Saldo Projetado 2026</div>
+      <canvas id="projChart" height="100"></canvas>
+    </div>
+
+    <div class="card anim anim-d3" style="margin-bottom:1.25rem">
+      <div class="chart-title">Projeção Mensal Detalhada</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Mês</th>
+              <th style="text-align:right">Receitas</th>
+              <th style="text-align:right">Despesas</th>
+              <th style="text-align:right">Resultado</th>
+              <th style="text-align:right">Saldo Projetado</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${p.months.map((m, i) => {
+              const isCurrent = i === currentMonth
+              const isPast = i < currentMonth
+              return `
+              <tr style="${isCurrent ? 'background:rgba(99,102,241,.1);font-weight:600' : isPast ? 'opacity:.6' : ''}">
+                <td>${m}/2026 ${isCurrent ? '<span style="color:var(--accent);font-size:.7rem">◀ ATUAL</span>' : ''}</td>
+                <td style="text-align:right;color:var(--green)">${currency(p.receitas[i])}</td>
+                <td style="text-align:right;color:var(--red)">${currency(p.despesas[i])}</td>
+                <td style="text-align:right;color:${p.resultado[i]>=0?'var(--green)':'var(--red)'}; font-weight:600">
+                  ${p.resultado[i]>=0?'+':''}${currency(p.resultado[i])}
+                </td>
+                <td style="text-align:right;font-weight:600">${currency(p.saldo[i])}</td>
+              </tr>`
+            }).join('')}
+            <tr style="border-top:2px solid var(--border);font-weight:700;background:rgba(255,255,255,.03)">
+              <td>TOTAL 2026</td>
+              <td style="text-align:right;color:var(--green)">${currency(totalReceita)}</td>
+              <td style="text-align:right;color:var(--red)">${currency(totalDespesa)}</td>
+              <td style="text-align:right;color:${totalResult>=0?'var(--green)':'var(--red)'}">
+                ${totalResult>=0?'+':''}${currency(totalResult)}
+              </td>
+              <td style="text-align:right">${currency(saldoFinal)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card anim anim-d4">
+      <div class="chart-title">Detalhamento — Despesas por Categoria (mensal)</div>
+      <div class="table-wrap">
+        <table style="min-width:1200px">
+          <thead>
+            <tr>
+              <th>Categoria</th>
+              ${p.months.map(m=>'<th style="text-align:right;font-size:.7rem">'+m+'</th>').join('')}
+              <th style="text-align:right">Anual</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${Object.entries(p.catBreakdown).sort((a,b)=>b[1].reduce((s,v)=>s+v,0)-a[1].reduce((s,v)=>s+v,0)).map(([name, vals]) => {
+              const total = vals.reduce((a,v)=>a+v,0)
+              return `<tr>
+                <td style="font-weight:500;font-size:.8rem">${name}</td>
+                ${vals.map(v=>'<td style="text-align:right;font-size:.8rem;color:var(--text2)">'+(v>0?currency(v):'—')+'</td>').join('')}
+                <td style="text-align:right;font-weight:600;font-size:.8rem">${currency(total)}</td>
+              </tr>`
+            }).join('')}
+            ${Object.keys(p.catBreakdown).length===0 ? '<tr><td colspan="14" style="text-align:center;color:var(--text3)">Nenhuma despesa registrada</td></tr>' : ''}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `
+}
+
+function initProjectionChart() {
+  const p = getProjectionData()
+  const ctx = document.getElementById('projChart')
+  if (!ctx) return
+
+  const chartDefaults = { color: 'rgba(255,255,255,.6)' }
+  const gridColor = 'rgba(255,255,255,.06)'
+
+  projChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: p.months.map(m => m+'/26'),
+      datasets: [
+        {
+          label: 'Saldo Projetado',
+          data: p.saldo,
+          borderColor: '#6366f1',
+          backgroundColor: 'rgba(99,102,241,.15)',
+          fill: true,
+          tension: .3,
+          borderWidth: 2.5,
+          pointRadius: 4,
+          pointBackgroundColor: '#6366f1'
+        },
+        {
+          label: 'Receitas',
+          data: p.receitas,
+          borderColor: '#22c55e',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          borderDash: [4,4],
+          tension: .3,
+          pointRadius: 3,
+          pointBackgroundColor: '#22c55e'
+        },
+        {
+          label: 'Despesas',
+          data: p.despesas,
+          borderColor: '#ef4444',
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          borderDash: [4,4],
+          tension: .3,
+          pointRadius: 3,
+          pointBackgroundColor: '#ef4444'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', labels: {...chartDefaults, usePointStyle: true, pointStyleWidth: 8 } },
+        tooltip: {
+          callbacks: { label: ctx => ctx.dataset.label + ': ' + currency(ctx.raw) }
+        }
+      },
+      scales: {
+        x: { ticks: chartDefaults, grid: { color: gridColor } },
+        y: { ticks: {...chartDefaults, callback: v => currency(v) }, grid: { color: gridColor } }
+      }
+    }
+  })
+}
+
+// ============================================================
+//   MODAL HELPERS
+// ============================================================
+function openModal() { document.getElementById('modal-overlay').classList.add('open') }
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open') }
+
+// ============================================================
+//   AUTH & INIT
+// ============================================================
+const PIN_CODE = 'grace2026'
+
+function verifyPin() {
+  const input = document.getElementById('pin-input')
+  if (input.value === PIN_CODE) {
+    localStorage.setItem('gv_auth_token', btoa(PIN_CODE))
+    document.getElementById('lock-screen').classList.add('hidden')
+    startApp() // Start app only AFTER authentication
+  } else {
+    input.classList.add('error')
+    setTimeout(() => input.classList.remove('error'), 400)
+    input.value = ''
+    input.focus()
+  }
+}
+
+// Check auth token on page load
+if (localStorage.getItem('gv_auth_token') === btoa(PIN_CODE)) {
+  document.getElementById('lock-screen').classList.add('hidden')
+  startApp() // Bypass lock screen if already authenticated
+}
+// If not authenticated, the app stays halted behind the lock screen HTML
+</script>
+</body>
+</html>
