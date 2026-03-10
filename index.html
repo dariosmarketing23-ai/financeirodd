@@ -1101,18 +1101,36 @@ function revertInstallmentFromTransaction(tx) {
 }
 
 function deleteTransaction(id) {
-  if(!confirm('Deseja excluir este lançamento?')) return
   const txs = LS.get('transactions',[])
   const tx = txs.find(t=>t.id===id)
-  if(tx) {
-    // Only revert balance if the transaction was Confirmed!
-    if(tx.confirmed) {
-      const accounts = LS.get('accounts',[])
-      const accIdx = accounts.findIndex(a=>a.id===tx.accountId)
-      if(accIdx>=0){ accounts[accIdx].balance += tx.type==='income' ? -tx.amount : tx.amount; LS.set('accounts',accounts) }
-    }
+  if(!tx) return
+
+  if(!confirm('Deseja excluir este lançamento?')) return
+
+  let deleteAll = false;
+  if((tx.recurrenceFreq || tx.clientId) && tx.recurrenceGroup) {
+      deleteAll = confirm('⚠️ Atenção: Este é um lançamento recorrente ou de contrato.\n\nDeseja excluir também todas as parcelas futuras PENDENTES dessa série?\n\n[OK] = Sim, excluir TODAS as futuras\n[Cancelar] = Não, excluir APENAS esta parcela')
   }
-  LS.set('transactions', txs.filter(t=>t.id!==id))
+
+  // Handle balance reversion for the explicitly deleted transaction
+  if(tx.confirmed) {
+    const accounts = LS.get('accounts',[])
+    const accIdx = accounts.findIndex(a=>a.id===tx.accountId)
+    if(accIdx>=0){ accounts[accIdx].balance += tx.type==='income' ? -tx.amount : tx.amount; LS.set('accounts',accounts) }
+  }
+
+  let finalTxs = txs.filter(t=>t.id!==id)
+
+  // Wipe the future series if requested
+  if (deleteAll) {
+      finalTxs = finalTxs.filter(t => {
+          // Keep if it doesn't match the group, or if it's already paid/confirmed
+          if(t.recurrenceGroup === tx.recurrenceGroup && !t.confirmed) return false;
+          return true; 
+      })
+  }
+
+  LS.set('transactions', finalTxs)
   render()
 }
 
