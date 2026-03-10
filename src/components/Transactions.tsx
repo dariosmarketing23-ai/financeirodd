@@ -1,10 +1,58 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { getTransactions, saveTransaction, getAccounts, Transaction, Account } from '../db/storage'
+
+// Custom CSV Parser to handle quotes correctly
+function parseCSV(text: string): string[][] {
+  const result: string[][] = []
+  let row: string[] = []
+  let inQuotes = false
+  let currentValue = ''
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i]
+
+    if (inQuotes) {
+      if (char === '"' && i + 1 < text.length && text[i + 1] === '"') {
+        currentValue += '"'
+        i++ // skip escaped quote
+      } else if (char === '"') {
+        inQuotes = false
+      } else {
+        currentValue += char
+      }
+    } else {
+      if (char === '"') {
+        inQuotes = true
+      } else if (char === ',') {
+        row.push(currentValue)
+        currentValue = ''
+      } else if (char === '\n' || char === '\r') {
+        if (char === '\r' && i + 1 < text.length && text[i + 1] === '\n') {
+          i++ // skip \n of \r\n
+        }
+        row.push(currentValue)
+        result.push(row)
+        row = []
+        currentValue = ''
+      } else {
+        currentValue += char
+      }
+    }
+  }
+
+  if (currentValue || row.length > 0) {
+    row.push(currentValue)
+    result.push(row)
+  }
+
+  return result.filter(r => r.some(c => c.trim() !== ''))
+}
 
 export function Transactions() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [accounts, setAccounts] = useState<Account[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Form state
   const [description, setDescription] = useState('')
@@ -43,13 +91,126 @@ export function Transactions() {
     setCategory('')
   }
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const text = event.target?.result as string
+      if (!text) return
+
+      const rows = parseCSV(text)
+      if (rows.length < 2) return
+
+      const header = rows[0].map(h => h.toLowerCase().trim())
+      let importedCount = 0
+
+      // Identify NuConta vs Credit Card format
+      const isNuConta = header.includes('data') && header.includes('valor') && header.includes('identificador')
+      const isCreditCard = header.includes('date') && header.includes('category') && header.includes('amount')
+
+      if (!isNuConta && !isCreditCard) {
+        alert("Formato de extrato não reconhecido. Use um CSV válido do Nubank (Conta ou Cartão).")
+        return
+      }
+
+      // We need a destination account for the imports
+      const targetAccountId = accountId || (accounts.length > 0 ? accounts[0].id : '')
+      if (!targetAccountId) {
+        alert("Nenhuma conta disponível para importar.")
+        return
+      }
+
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i]
+
+        if (isNuConta) {
+          // NuConta: Data,Valor,Identificador,Descrição
+          if (row.length < 4) continue
+          const rawDate = row[header.indexOf('data')].trim() // DD/MM/YYYY
+          const rawAmount = row[header.indexOf('valor')].trim()
+          const rawDesc = row[header.indexOf('descrição')]?.trim() || row[header.indexOf('descricao')]?.trim() || ''
+
+          if (!rawDate || !rawAmount) continue
+
+          const [day, month, year] = rawDate.split('/')
+          const parsedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+          const amountNum = parseFloat(rawAmount.replace(',', '.'))
+
+          if (isNaN(amountNum)) continue
+
+          const txType = amountNum >= 0 ? 'income' : 'expense'
+          const txAmount = Math.abs(amountNum)
+
+          saveTransaction({
+            description: rawDesc,
+            amount: txAmount,
+            date: parsedDate,
+            category: 'Conta Nubank',
+            type: txType,
+            accountId: targetAccountId
+          })
+          importedCount++
+        } else if (isCreditCard) {
+          // Credit Card: date,category,title,amount
+          if (row.length < 4) continue
+          const rawDate = row[header.indexOf('date')].trim() // YYYY-MM-DD
+          const rawCategory = row[header.indexOf('category')].trim()
+          const rawTitle = row[header.indexOf('title')].trim()
+          const rawAmount = row[header.indexOf('amount')].trim()
+
+          if (!rawDate || !rawAmount) continue
+
+          const amountNum = parseFloat(rawAmount.replace(',', '.'))
+          if (isNaN(amountNum)) continue
+
+          saveTransaction({
+            description: rawTitle,
+            amount: Math.abs(amountNum),
+            date: rawDate,
+            category: rawCategory || 'Cartão Nubank',
+            type: 'expense', // Fatura de cartão é sempre despesa
+            accountId: targetAccountId
+          })
+          importedCount++
+        }
+      }
+
+      // Refresh data
+      setTransactions(getTransactions())
+      setAccounts(getAccounts())
+      alert(`Importação concluída! ${importedCount} lançamentos adicionados.`)
+
+      // Reset input
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+    reader.readAsText(file)
+  }
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <h2>Histórico de Transações</h2>
-        <button className="btn-primary" onClick={() => setIsModalOpen(true)}>
-          + Novo Lançamento
-        </button>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <input
+            type="file"
+            accept=".csv"
+            style={{ display: 'none' }}
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+          />
+          <button
+            className="btn-primary"
+            style={{ background: 'var(--card-bg)', border: '1px solid var(--border-color)' }}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            Importar Nubank (CSV)
+          </button>
+          <button className="btn-primary" onClick={() => setIsModalOpen(true)}>
+            + Novo Lançamento
+          </button>
+        </div>
       </div>
 
       <div className="glass-panel" style={{ overflow: 'hidden' }}>
@@ -88,7 +249,7 @@ export function Transactions() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
           <div className="glass-panel animate-fade-in" style={{ padding: '2rem', width: '100%', maxWidth: '500px' }}>
             <h3 style={{ marginBottom: '1.5rem' }}>Novo Lançamento</h3>
-            
+
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div style={{ display: 'flex', gap: '1rem' }}>
                 <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
@@ -103,7 +264,7 @@ export function Transactions() {
               <input required type="number" step="0.01" placeholder="Valor (R$)" value={amount} onChange={e => setAmount(e.target.value)} />
               <input required type="date" value={date} onChange={e => setDate(e.target.value)} />
               <input required placeholder="Categoria (ex: Saúde, Casa)" value={category} onChange={e => setCategory(e.target.value)} />
-              
+
               <select required value={accountId} onChange={e => setAccountId(e.target.value)}>
                 {accounts.map(a => (
                   <option key={a.id} value={a.id} style={{ color: 'black' }}>{a.name}</option>
