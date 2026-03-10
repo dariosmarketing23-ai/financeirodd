@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { getAccounts, getTransactions, Transaction, Account } from '../db/storage'
 import {
   Chart as ChartJS,
