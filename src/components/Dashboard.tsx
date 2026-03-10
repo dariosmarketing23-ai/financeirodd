@@ -33,16 +33,16 @@ export function Dashboard() {
     setAccounts(getAccounts())
   }, [])
 
-  const totalBalance = accounts.reduce((acc, a) => acc + a.balance, 0)
+  const totalBalance = accounts.reduce((acc: number, a: Account) => acc + a.balance, 0)
 
-  const currentMonthTx = transactions.filter(t => new Date(t.date).getMonth() === new Date().getMonth())
-  const totalIncome = currentMonthTx.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0)
-  const totalExpense = currentMonthTx.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0)
+  const currentMonthTx = transactions.filter((t: Transaction) => new Date(t.date).getMonth() === new Date().getMonth())
+  const totalIncome = currentMonthTx.filter((t: Transaction) => t.type === 'income').reduce((acc: number, t: Transaction) => acc + t.amount, 0)
+  const totalExpense = currentMonthTx.filter((t: Transaction) => t.type === 'expense').reduce((acc: number, t: Transaction) => acc + t.amount, 0)
 
   // Get today's transactions properly in local time (YYYY-MM-DD)
   const today = new Date()
   const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-  const todaysTransactions = transactions.filter(t => t.date === todayString)
+  const todaysTransactions = transactions.filter((t: Transaction) => t.date === todayString)
 
   // Demo chart data
   const lineOptions = {
@@ -142,7 +142,7 @@ export function Dashboard() {
           </p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {todaysTransactions.map(tx => (
+            {todaysTransactions.map((tx: Transaction) => (
               <div
                 key={tx.id}
                 style={{

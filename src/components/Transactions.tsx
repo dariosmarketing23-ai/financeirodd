@@ -224,7 +224,7 @@ export function Transactions() {
             </tr>
           </thead>
           <tbody>
-            {transactions.slice().reverse().map(tx => (
+            {transactions.slice().reverse().map((tx: Transaction) => (
               <tr key={tx.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
                 <td style={{ padding: '1rem' }}>{new Date(tx.date).toLocaleDateString('pt-BR')}</td>
                 <td style={{ padding: '1rem' }}>{tx.description}</td>
@@ -260,13 +260,13 @@ export function Transactions() {
                 </label>
               </div>
 
-              <input required placeholder="Descrição" value={description} onChange={e => setDescription(e.target.value)} />
-              <input required type="number" step="0.01" placeholder="Valor (R$)" value={amount} onChange={e => setAmount(e.target.value)} />
-              <input required type="date" value={date} onChange={e => setDate(e.target.value)} />
-              <input required placeholder="Categoria (ex: Saúde, Casa)" value={category} onChange={e => setCategory(e.target.value)} />
+              <input required placeholder="Descrição" value={description} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDescription(e.target.value)} />
+              <input required type="number" step="0.01" placeholder="Valor (R$)" value={amount} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAmount(e.target.value)} />
+              <input required type="date" value={date} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDate(e.target.value)} />
+              <input required placeholder="Categoria (ex: Saúde, Casa)" value={category} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCategory(e.target.value)} />
 
-              <select required value={accountId} onChange={e => setAccountId(e.target.value)}>
-                {accounts.map(a => (
+              <select required value={accountId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setAccountId(e.target.value)}>
+                {accounts.map((a: Account) => (
                   <option key={a.id} value={a.id} style={{ color: 'black' }}>{a.name}</option>
                 ))}
               </select>
