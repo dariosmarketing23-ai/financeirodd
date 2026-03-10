@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { getAccounts, getTransactions, Transaction, Account } from '../db/storage'
 import {
   Chart as ChartJS,
@@ -34,10 +34,15 @@ export function Dashboard() {
   }, [])
 
   const totalBalance = accounts.reduce((acc, a) => acc + a.balance, 0)
-  
+
   const currentMonthTx = transactions.filter(t => new Date(t.date).getMonth() === new Date().getMonth())
   const totalIncome = currentMonthTx.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0)
   const totalExpense = currentMonthTx.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0)
+
+  // Get today's transactions properly in local time (YYYY-MM-DD)
+  const today = new Date()
+  const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  const todaysTransactions = transactions.filter(t => t.date === todayString)
 
   // Demo chart data
   const lineOptions = {
@@ -90,7 +95,7 @@ export function Dashboard() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-      
+
       {/* Metrics Row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
         <div className="glass-panel" style={{ padding: '1.5rem' }}>
@@ -123,6 +128,48 @@ export function Dashboard() {
           <h3 style={{ marginBottom: '1.5rem' }}>Despesas por Categoria</h3>
           <Doughnut data={doughnutData} options={doughnutOptions} />
         </div>
+      </div>
+
+      {/* Lançamentos do Dia */}
+      <div className="glass-panel" style={{ padding: '1.5rem' }}>
+        <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span>📅</span> Lançamentos de Hoje
+        </h3>
+
+        {todaysTransactions.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem 0' }}>
+            Nenhum lançamento programado para hoje.
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {todaysTransactions.map(tx => (
+              <div
+                key={tx.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '1rem',
+                  background: 'rgba(255,255,255,0.03)',
+                  borderRadius: '8px',
+                  borderLeft: `4px solid ${tx.type === 'income' ? 'var(--accent-success)' : 'var(--accent-danger)'}`
+                }}
+              >
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '1rem' }}>{tx.description}</h4>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{tx.category}</span>
+                </div>
+                <div style={{
+                  fontWeight: 'bold',
+                  fontSize: '1.1rem',
+                  color: tx.type === 'income' ? 'var(--accent-success)' : 'var(--accent-danger)'
+                }}>
+                  {tx.type === 'income' ? '+' : '-'} {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(tx.amount)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
     </div>
