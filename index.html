@@ -449,12 +449,39 @@ function startApp() {
 }
 
 // ============================================================
-//   NAVIGATION
+//   NAVIGATION & FILTERS
 // ============================================================
 let currentPage = 'dashboard'
 let lineChart, doughnutChart, projChart
 let txViewMonth = new Date().getMonth()
 let txViewYear = new Date().getFullYear()
+
+let globalFilterType = 'Todas'
+let globalFilterCat = 'Todas'
+let globalFilterStatus = 'Todas'
+
+function renderGlobalFilters(allTxs) {
+  const categories = Array.from(new Set(allTxs.map(t=>t.category))).sort()
+  return `
+    <div class="card anim" style="display:flex;gap:1.5rem;margin-bottom:1.25rem;padding:0.75rem 1.5rem;align-items:center;overflow-x:auto;">
+      <span style="font-weight:600;font-size:.9rem;color:var(--text2);margin-right:0.5rem">Filtros Ativos:</span>
+      <select class="form-group" style="margin:0;min-width:140px;padding:.4rem" onchange="globalFilterType=this.value;render()">
+        <option value="Todas" ${globalFilterType==='Todas'?'selected':''}>Tipos: Todos</option>
+        <option value="income" ${globalFilterType==='income'?'selected':''}>Apenas Receitas</option>
+        <option value="expense" ${globalFilterType==='expense'?'selected':''}>Apenas Despesas</option>
+      </select>
+      <select class="form-group" style="margin:0;min-width:160px;padding:.4rem" onchange="globalFilterStatus=this.value;render()">
+        <option value="Todas" ${globalFilterStatus==='Todas'?'selected':''}>Status: Todos</option>
+        <option value="confirmed" ${globalFilterStatus==='confirmed'?'selected':''}>✅ Confirmados</option>
+        <option value="pending" ${globalFilterStatus==='pending'?'selected':''}>⏳ Pendentes</option>
+      </select>
+      <select class="form-group" style="margin:0;min-width:180px;padding:.4rem" onchange="globalFilterCat=this.value;render()">
+        <option value="Todas" ${globalFilterCat==='Todas'?'selected':''}>Categorias: Todas</option>
+        ${categories.map(c => `<option value="${c}" ${globalFilterCat===c?'selected':''}>${c}</option>`).join('')}
+      </select>
+    </div>
+  `
+}
 
 function navigate(page) {
   currentPage = page
@@ -485,7 +512,17 @@ function render() {
 // ============================================================
 function renderDashboard() {
   const accounts = LS.get('accounts',[])
-  const txs = LS.get('transactions',[])
+  const rawTxs = LS.get('transactions',[])
+  let txs = rawTxs
+
+  // Apply Global Filters
+  if (globalFilterType !== 'Todas') txs = txs.filter(t=>t.type === globalFilterType)
+  if (globalFilterCat !== 'Todas') txs = txs.filter(t=>t.category === globalFilterCat)
+  if (globalFilterStatus !== 'Todas') {
+    const isConf = globalFilterStatus === 'confirmed'
+    txs = txs.filter(t=>t.confirmed === isConf)
+  }
+
   const clients = LS.get('clients',[])
   const installments = LS.get('installments',[])
 
@@ -517,6 +554,8 @@ function renderDashboard() {
       </div>
       <button class="btn btn-primary" onclick="openTransactionModal()">+ Novo Lançamento</button>
     </div>
+
+    ${renderGlobalFilters(rawTxs)}
 
     <div class="kpi-grid" style="grid-template-columns:repeat(5,1fr)">
       <div class="card kpi anim anim-d1">
@@ -641,7 +680,16 @@ function renderDashboard() {
 }
 
 function initCharts() {
-  const txs = LS.get('transactions',[])
+  const rawTxs = LS.get('transactions',[])
+  let txs = rawTxs
+  
+  if (globalFilterType !== 'Todas') txs = txs.filter(t=>t.type === globalFilterType)
+  if (globalFilterCat !== 'Todas') txs = txs.filter(t=>t.category === globalFilterCat)
+  if (globalFilterStatus !== 'Todas') {
+    const isConf = globalFilterStatus === 'confirmed'
+    txs = txs.filter(t=>t.confirmed === isConf)
+  }
+
   const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
   const now = new Date()
 
@@ -726,7 +774,16 @@ function initCharts() {
 //   TRANSACTIONS
 // ============================================================
 function renderTransactions() {
-  const allTxs = LS.get('transactions',[])
+  const rawTxs = LS.get('transactions',[])
+  let allTxs = rawTxs
+
+  if (globalFilterType !== 'Todas') allTxs = allTxs.filter(t=>t.type === globalFilterType)
+  if (globalFilterCat !== 'Todas') allTxs = allTxs.filter(t=>t.category === globalFilterCat)
+  if (globalFilterStatus !== 'Todas') {
+    const isConf = globalFilterStatus === 'confirmed'
+    allTxs = allTxs.filter(t=>t.confirmed === isConf)
+  }
+
   const monthNames = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
   const monthLabel = monthNames[txViewMonth] + ' ' + txViewYear
 
@@ -748,6 +805,8 @@ function renderTransactions() {
       <div><h1>Lançamentos</h1><p>Gerencie todas as suas receitas e despesas</p></div>
       <button class="btn btn-primary" onclick="openTransactionModal()">+ Novo Lançamento</button>
     </div>
+
+    ${renderGlobalFilters(rawTxs)}
 
     <div class="card anim" style="display:flex;align-items:center;justify-content:center;gap:1.5rem;padding:1rem 1.5rem;margin-bottom:1.25rem">
       <button class="btn btn-outline btn-sm" onclick="changeTxMonth(-1)" style="font-size:1.1rem;padding:.4rem .8rem">◀</button>
