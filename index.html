@@ -548,7 +548,7 @@ function renderDashboard() {
 
     <div class="chart-grid">
       <div class="card anim anim-d2">
-        <div class="chart-title">Receitas vs Despesas (últimos 6 meses)</div>
+        <div class="chart-title">Fluxo de Caixa Projetado (Próximos 6 Meses)</div>
         <canvas id="lineChart" height="120"></canvas>
       </div>
       <div class="card anim anim-d3">
@@ -645,15 +645,30 @@ function initCharts() {
   const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
   const now = new Date()
 
-  // Last 6 months income & expense
-  const incomeData = [], expenseData = [], labels = []
-  for (let i = 5; i >= 0; i--) {
-    const m = (now.getMonth() - i + 12) % 12
-    const y = now.getFullYear() - (now.getMonth()-i < 0 ? 1 : 0)
+  // 6-Month Forward Cash Flow Projection
+  const incomeData = [], expenseData = [], balanceData = [], labels = []
+  const currentBalance = LS.get('accounts',[]).reduce((a,c)=>a+c.balance,0)
+
+  for (let i = 0; i <= 5; i++) {
+    const m = (now.getMonth() + i) % 12
+    const y = now.getFullYear() + Math.floor((now.getMonth() + i) / 12)
     labels.push(months[m])
-    const mTxs = txs.filter(t => { const d = new Date(t.date); return d.getMonth()===m && d.getFullYear()===y })
+    
+    const mTxs = txs.filter(t => { const d = new Date(t.date + 'T12:00:00'); return d.getMonth()===m && d.getFullYear()===y })
     incomeData.push(mTxs.filter(t=>t.type==='income').reduce((a,t)=>a+t.amount,0))
     expenseData.push(mTxs.filter(t=>t.type==='expense').reduce((a,t)=>a+t.amount,0))
+
+    // Projected accumulated balance at the end of this month
+    const targetDate = new Date(y, m + 1, 0, 23, 59, 59)
+    const pendingTxsUpToMonth = txs.filter(t => {
+      if (t.confirmed) return false;
+      const d = new Date(t.date + 'T12:00:00');
+      return d <= targetDate;
+    })
+    const pendingInc = pendingTxsUpToMonth.filter(t=>t.type==='income').reduce((a,t)=>a+t.amount,0)
+    const pendingExp = pendingTxsUpToMonth.filter(t=>t.type==='expense').reduce((a,t)=>a+t.amount,0)
+    
+    balanceData.push(currentBalance + pendingInc - pendingExp)
   }
 
   const chartDefaults = { color: 'rgba(255,255,255,.6)' }
@@ -666,8 +681,9 @@ function initCharts() {
       data: {
         labels,
         datasets: [
-          { label:'Receitas', data:incomeData, backgroundColor:'rgba(34,197,94,.6)', borderRadius:6, barPercentage:.4 },
-          { label:'Despesas', data:expenseData, backgroundColor:'rgba(239,68,68,.5)', borderRadius:6, barPercentage:.4 }
+          { type:'line', label:'Saldo Acumulado', data:balanceData, borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,0.1)', borderWidth:2, tension:0.3, fill:true },
+          { type:'bar', label:'Receitas Previstas', data:incomeData, backgroundColor:'rgba(34,197,94,.6)', borderRadius:6, barPercentage:.4 },
+          { type:'bar', label:'Despesas Previstas', data:expenseData, backgroundColor:'rgba(239,68,68,.5)', borderRadius:6, barPercentage:.4 }
         ]
       },
       options: {
@@ -768,20 +784,41 @@ function renderTransactions() {
           <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th><th>Status</th><th></th></tr></thead>
           <tbody>
             ${sorted.map(tx => {
-              const statusLabel = tx.confirmed
-                ? (tx.type==='income' ? 'Recebido' : 'Debitado')
-                : (tx.type==='income' ? 'A receber' : 'A debitar')
-              const statusIcon = tx.confirmed ? '✅' : '⏳'
+              const txDate = new Date(tx.date + 'T12:00:00')
+              const now = new Date()
+              now.setHours(0,0,0,0)
+              const isOverdue = !tx.confirmed && (txDate < now)
+
+              let statusLabel = tx.confirmed
+                ? (tx.type === 'income' ? 'Recebido' : 'Debitado')
+                : (tx.type === 'income' ? 'A receber' : 'A debitar')
+              
+              let statusIcon = tx.confirmed ? '✅' : '⏳'
+              let btnClass = tx.confirmed ? 'badge-green' : 'badge-amber'
+              
+              let overdueBadge = ''
+              if (isOverdue) {
+                statusLabel = tx.type === 'income' ? 'Receita Atrasada' : 'Atrasado'
+                statusIcon = '⚠️'
+                btnClass = 'badge-red'
+                overdueBadge = '<span class="badge badge-red" style="font-size:0.65rem;margin-left:0.5rem">Vencido</span>'
+              }
+
               return `
-              <tr style="${!tx.confirmed ? 'opacity:.75' : ''}">
-                <td>${fmtDate(tx.date)}</td>
-                <td style="font-weight:500">${tx.description}</td>
+              <tr style="${!tx.confirmed && !isOverdue ? 'opacity:.75' : ''}">
+                <td>
+                  <div style="font-weight:500;color:${isOverdue?'var(--red)':''}">${fmtDate(tx.date)}</div>
+                </td>
+                <td style="font-weight:500">
+                  ${tx.description}
+                  ${overdueBadge}
+                </td>
                 <td><span class="badge ${tx.type==='income'?'badge-green':'badge-red'}">${tx.category}</span></td>
                 <td style="color:${tx.type==='income'?'var(--green)':'var(--red)'};font-weight:600">
                   ${tx.type==='income'?'+':'−'} ${currency(tx.amount)}
                 </td>
                 <td>
-                  <button class="btn btn-sm ${tx.confirmed?'badge-green':'badge-amber'}" style="cursor:pointer;border:none;padding:.3rem .6rem;border-radius:6px;font-size:.75rem" onclick="toggleConfirm('${tx.id}')">
+                  <button class="btn btn-sm ${btnClass}" style="cursor:pointer;border:none;padding:.3rem .6rem;border-radius:6px;font-size:.75rem" onclick="toggleConfirm('${tx.id}')">
                     ${statusIcon} ${statusLabel}
                   </button>
                 </td>
@@ -854,28 +891,29 @@ function openTransactionModal(prefill) {
       </div>
       <div style="border-top:1px solid var(--border);margin-top:1rem;padding-top:1rem">
         <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;margin-bottom:.75rem">
-          <input type="checkbox" id="tx-recur" onchange="document.getElementById('recur-options').style.display=this.checked?'block':'none'">
-          <span style="font-weight:500">🔁 ${isEdit ? 'Duplicar para frente (recorrência)' : 'Repetir lançamento'}</span>
+          <input type="checkbox" id="tx-recur" ${prefill && prefill.recurrenceFreq ? 'checked' : ''} onchange="document.getElementById('recur-options').style.display=this.checked?'block':'none'">
+          <span style="font-weight:500">🔁 ${isEdit ? (prefill.recurrenceFreq ? 'Lançamento Recorrente Ativo' : 'Tornar Recorrente a partir daqui') : 'Repetir lançamento (Recorrência)'}</span>
         </label>
-        <div id="recur-options" style="display:none">
+        <div id="recur-options" style="display:${prefill && prefill.recurrenceFreq ? 'block' : 'none'}">
           <div class="form-row" style="margin-bottom:.75rem">
             <div class="form-group">
               <label>Frequência</label>
-              <select id="tx-freq">
-                <option value="weekly">Semanal (7 dias)</option>
-                <option value="biweekly">Quinzenal (15 dias)</option>
-                <option value="monthly" selected>Mensal</option>
+              <select id="tx-freq" ${prefill && prefill.recurrenceFreq ? 'disabled' : ''}>
+                <option value="weekly" ${prefill && prefill.recurrenceFreq === 'weekly' ? 'selected' : ''}>Semanal (7 dias)</option>
+                <option value="biweekly" ${prefill && prefill.recurrenceFreq === 'biweekly' ? 'selected' : ''}>Quinzenal (15 dias)</option>
+                <option value="monthly" ${(!prefill || !prefill.recurrenceFreq || prefill.recurrenceFreq === 'monthly') ? 'selected' : ''}>Mensal</option>
               </select>
             </div>
-            <div class="form-group" id="reps-group">
+            <div class="form-group" id="reps-group" style="display:${prefill && prefill.recurrenceFreq ? 'none' : 'block'}">
               <label>Quantas repetições</label>
               <input id="tx-reps" type="number" min="1" max="52" value="3" placeholder="Ex: 12">
             </div>
           </div>
+          ${!(prefill && prefill.recurrenceFreq) ? `
           <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
             <input type="checkbox" id="tx-noend" onchange="document.getElementById('reps-group').style.display=this.checked?'none':'block'">
             <span style="font-size:.875rem">♾️ Receita/Despesa fixa (sem prazo definido) — gera 12 meses à frente</span>
-          </label>
+          </label>` : '<p style="font-size:.8rem;color:var(--text3)">Para cancelar a recorrência futura, apague as parcelas geradas.</p>'}
         </div>
       </div>
       <div class="form-actions">
@@ -905,21 +943,56 @@ function saveTransaction(e, editId) {
   const recurCheckbox = document.getElementById('tx-recur')
   const isRecurring = recurCheckbox && recurCheckbox.checked
 
-  if (editId) {
-    // Update the existing transaction
-    const idx = txs.findIndex(t => t.id === editId)
-    if (idx >= 0) txs[idx] = { ...txs[idx], ...data }
+  const idx = editId ? txs.findIndex(t => t.id === editId) : -1
+  const originalTx = idx >= 0 ? txs[idx] : null
+  const wasRecurring = originalTx && originalTx.recurrenceFreq
+  const shouldSpawnNew = isRecurring && !wasRecurring
+
+  // BALANCE ADJUSTMENT: Revert old if confirmed
+  const accounts = LS.get('accounts',[])
+  if (originalTx && originalTx.confirmed) {
+     const accIdx = accounts.findIndex(a=>a.id===originalTx.accountId)
+     if(accIdx>=0) accounts[accIdx].balance += (originalTx.type==='income' ? -originalTx.amount : originalTx.amount)
   }
 
-  if (isRecurring) {
+  if (editId) {
+    // Update the existing transaction
+    if (idx >= 0) {
+      txs[idx] = { 
+        ...txs[idx], ...data, 
+        recurrenceFreq: isRecurring ? (originalTx.recurrenceFreq || document.getElementById('tx-freq').value) : null 
+      }
+    }
+  } else {
+    // New single transaction
+    data.id = uid()
+    if (!shouldSpawnNew) txs.push(data)
+  }
+  
+  // BALANCE ADJUSTMENT: Apply new if confirmed
+  if (data.confirmed) {
+     const accIdx = accounts.findIndex(a=>a.id===data.accountId)
+     if(accIdx>=0) accounts[accIdx].balance += (data.type==='income' ? data.amount : -data.amount)
+  }
+  LS.set('accounts',accounts)
+
+  // Spawn duplicates ONLY if it's a completely newly marked recurrence
+  if (shouldSpawnNew) {
     const freq = document.getElementById('tx-freq').value
     const noEnd = document.getElementById('tx-noend')
     const reps = (noEnd && noEnd.checked) ? 12 : (parseInt(document.getElementById('tx-reps').value) || 1)
     const startDate = new Date(data.date + 'T12:00:00')
-    const startIdx = editId ? 1 : 0 // If editing, start from 1 (skip original, already updated)
-    const totalCount = reps + (editId ? 0 : 1) // total entries to create
+    const startIdx = editId ? 1 : 0 
+    
+    // If it's new, push the original first
+    if (!editId) {
+      data.recurrenceFreq = freq
+      data.recurrenceGroup = data.description
+      txs.push(data)
+    }
 
     for (let i = startIdx; i <= reps; i++) {
+      if (editId && i === 0) continue; // safety
       const d = new Date(startDate)
       if (freq === 'weekly') d.setDate(d.getDate() + (i * 7))
       else if (freq === 'biweekly') d.setDate(d.getDate() + (i * 15))
@@ -937,10 +1010,6 @@ function saveTransaction(e, editId) {
         recurrenceFreq: freq
       })
     }
-  } else if (!editId) {
-    // Simple new transaction without recurrence
-    data.id = uid()
-    txs.push(data)
   }
 
   LS.set('transactions', txs)
@@ -952,18 +1021,25 @@ function toggleConfirm(id) {
   const txs = LS.get('transactions',[])
   const idx = txs.findIndex(t=>t.id===id)
   if(idx>=0) {
-    const wasConfirmed = txs[idx].confirmed
-    txs[idx].confirmed = !wasConfirmed
+    const tx = txs[idx]
+    const wasConfirmed = tx.confirmed
+    tx.confirmed = !wasConfirmed
     LS.set('transactions', txs)
 
+    // Adjust account balance
+    const accounts = LS.get('accounts',[])
+    const accIdx = accounts.findIndex(a=>a.id===tx.accountId)
+    if(accIdx>=0) {
+      const modifier = tx.confirmed ? 1 : -1
+      const amountDelta = (tx.type==='income' ? tx.amount : -tx.amount) * modifier
+      accounts[accIdx].balance += amountDelta
+      LS.set('accounts', accounts)
+    }
+
     // Auto-update installments when confirming an expense
-    if (!wasConfirmed && txs[idx].type === 'expense') {
-      updateInstallmentFromTransaction(txs[idx])
-    }
+    if (!wasConfirmed && tx.type === 'expense') updateInstallmentFromTransaction(tx)
     // Revert installment if un-confirming an expense
-    if (wasConfirmed && txs[idx].type === 'expense') {
-      revertInstallmentFromTransaction(txs[idx])
-    }
+    if (wasConfirmed && tx.type === 'expense') revertInstallmentFromTransaction(tx)
   }
   render()
 }
@@ -1029,9 +1105,12 @@ function deleteTransaction(id) {
   const txs = LS.get('transactions',[])
   const tx = txs.find(t=>t.id===id)
   if(tx) {
-    const accounts = LS.get('accounts',[])
-    const idx = accounts.findIndex(a=>a.id===tx.accountId)
-    if(idx>=0){ accounts[idx].balance += tx.type==='income' ? -tx.amount : tx.amount; LS.set('accounts',accounts) }
+    // Only revert balance if the transaction was Confirmed!
+    if(tx.confirmed) {
+      const accounts = LS.get('accounts',[])
+      const accIdx = accounts.findIndex(a=>a.id===tx.accountId)
+      if(accIdx>=0){ accounts[accIdx].balance += tx.type==='income' ? -tx.amount : tx.amount; LS.set('accounts',accounts) }
+    }
   }
   LS.set('transactions', txs.filter(t=>t.id!==id))
   render()
@@ -1069,21 +1148,37 @@ function renderClients() {
     <div class="card anim anim-d3">
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Cliente</th><th>Valor/Mês</th><th>Dia Pgto</th><th>Status</th><th>Receita Anual</th><th></th></tr></thead>
+          <thead><tr><th>Cliente</th><th>Valor/Mês</th><th>Dia Pgto</th><th>Status</th><th>Contrato</th><th></th></tr></thead>
           <tbody>
-            ${clients.map(c => `
+            ${clients.map(c => {
+              let endingBadge = ''
+              let contractText = '-'
+              if (c.startDate && c.contractMonths) {
+                const end = new Date(c.startDate + 'T12:00:00')
+                end.setMonth(end.getMonth() + parseInt(c.contractMonths))
+                const daysLeft = (end - new Date()) / (1000 * 60 * 60 * 24)
+                
+                contractText = `${c.contractMonths} meses`
+                if (daysLeft <= 0) endingBadge = '<span class="badge badge-red" style="font-size:0.65rem;margin-left:0.5rem;display:block;margin-top:2px;width:fit-content">Contrato Expirado</span>'
+                else if (daysLeft <= 30) endingBadge = '<span class="badge badge-amber" style="font-size:0.65rem;margin-left:0.5rem;display:block;margin-top:2px;width:fit-content">Acaba em breve!</span>'
+              }
+
+              return `
               <tr>
-                <td style="font-weight:500">${c.name}</td>
+                <td>
+                  <div style="font-weight:500">${c.name}</div>
+                  ${endingBadge}
+                </td>
                 <td>${currency(c.monthlyValue)}</td>
                 <td>Dia ${c.payDay}</td>
                 <td><span class="badge ${c.status==='Ativo'?'badge-green':'badge-amber'}">${c.status}</span></td>
-                <td>${currency(c.annualRevenue || c.monthlyValue*12)}</td>
+                <td style="color:var(--text3);font-size:.8rem">${contractText}</td>
                 <td style="display:flex;gap:.35rem">
                   <button class="btn btn-outline btn-sm" onclick='openClientModal(${JSON.stringify(c)})'>✎</button>
                   <button class="btn btn-danger btn-sm" onclick="deleteClient('${c.id}')">✕</button>
                 </td>
               </tr>
-            `).join('')}
+            `}).join('')}
           </tbody>
         </table>
         ${clients.length===0 ? '<div class="empty-state"><p>Nenhum cliente cadastrado.</p></div>' : ''}
@@ -1113,6 +1208,16 @@ function openClientModal(prefill) {
       </div>
       <div class="form-row">
         <div class="form-group">
+          <label>Início do Contrato</label>
+          <input id="cl-start" type="date" required value="${prefill&&prefill.startDate?prefill.startDate:new Date().toISOString().split('T')[0]}">
+        </div>
+        <div class="form-group">
+          <label>Meses de Contrato</label>
+          <input id="cl-months" type="number" min="1" required placeholder="Ex: 6, 12" value="${prefill?prefill.contractMonths||12:'12'}">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
           <label>Categoria</label>
           <input id="cl-cat" value="${prefill?prefill.category||'Grace Vision':'Grace Vision'}">
         </div>
@@ -1126,7 +1231,7 @@ function openClientModal(prefill) {
       </div>
       <div class="form-actions">
         <button type="button" class="btn btn-outline" onclick="closeModal()">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Salvar</button>
+        <button type="submit" class="btn btn-primary">${prefill?'Atualizar':'Adicionar Cliente'}</button>
       </div>
     </form>
   `
@@ -1142,6 +1247,8 @@ function saveClient(e, editId) {
     payDay: document.getElementById('cl-day').value,
     category: document.getElementById('cl-cat').value,
     status: document.getElementById('cl-status').value,
+    startDate: document.getElementById('cl-start').value,
+    contractMonths: parseInt(document.getElementById('cl-months').value) || 12
   }
   data.annualRevenue = data.monthlyValue * 12
 
@@ -1149,7 +1256,37 @@ function saveClient(e, editId) {
     const idx = clients.findIndex(c=>c.id===editId)
     if(idx>=0) clients[idx] = { ...clients[idx], ...data }
   } else {
-    clients.push({ id: uid(), ...data })
+    data.id = uid()
+    clients.push(data)
+    
+    // Auto-generate transactions for the entire contract
+    const txs = LS.get('transactions',[])
+    const accounts = LS.get('accounts',[])
+    const defaultAcc = accounts.length > 0 ? accounts[0].id : ''
+    const startDate = new Date(data.startDate + 'T12:00:00')
+    const prefDay = parseInt(data.payDay) || startDate.getDate()
+
+    for (let i = 0; i < data.contractMonths; i++) {
+       const d = new Date(startDate)
+       d.setMonth(d.getMonth() + i)
+       // Set day to preferred payDay, capped by month length
+       if (prefDay > 0) d.setDate(Math.min(prefDay, new Date(d.getFullYear(), d.getMonth()+1, 0).getDate()))
+       
+       txs.push({
+           id: uid(),
+           description: `Mensalidade ${data.name} (${i+1}/${data.contractMonths})`,
+           amount: data.monthlyValue,
+           date: d.toISOString().split('T')[0],
+           category: data.category,
+           type: 'income',
+           accountId: defaultAcc,
+           confirmed: false,
+           recurrenceGroup: `Contrato ${data.name}`,
+           recurrenceFreq: 'monthly',
+           clientId: data.id
+       })
+    }
+    LS.set('transactions', txs)
   }
   LS.set('clients', clients)
   closeModal()
@@ -1157,8 +1294,26 @@ function saveClient(e, editId) {
 }
 
 function deleteClient(id) {
-  if(!confirm('Deseja excluir este cliente?')) return
-  LS.set('clients', LS.get('clients',[]).filter(c=>c.id!==id))
+  if(!confirm('Deseja excluir este cliente?\n\nIsso também removerá automaticamente todas as mensalidades (Lançamentos Pendentes) vinculadas ao contrato atual dele. Lançamentos que já foram recebidos (Confirmados) serão mantidos no histórico.')) return
+  
+  const clients = LS.get('clients',[])
+  const cToDelete = clients.find(c=>c.id===id)
+  
+  if (cToDelete) {
+      const txs = LS.get('transactions',[])
+      const filteredTxs = txs.filter(t => {
+          // Keep all transactions that are already received
+          if (t.confirmed) return true
+          // Delete if explicitly linked
+          if (t.clientId === id) return false
+          // Fallback delete for legacy auto-generated contract entries
+          if (t.recurrenceGroup === `Contrato ${cToDelete.name}`) return false
+          return true
+      })
+      LS.set('transactions', filteredTxs)
+  }
+
+  LS.set('clients', clients.filter(c=>c.id!==id))
   render()
 }
 
