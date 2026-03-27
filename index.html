@@ -40,7 +40,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   background:linear-gradient(135deg,var(--accent),var(--accent2));
   display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.1rem;color:#fff}
 .logo h2{font-size:1.2rem;background:linear-gradient(135deg,var(--accent),var(--accent2));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
 .logo small{display:block;color:var(--text3);font-size:.7rem;font-weight:400;margin-top:2px}
 
 .nav{display:flex;flex-direction:column;gap:.35rem;flex:1}
@@ -530,7 +530,7 @@ function renderDashboard() {
   const now = new Date()
   const month = now.getMonth()
   const year = now.getFullYear()
-  const monthTxs = txs.filter(t => { const d = new Date(t.date); return d.getMonth()===month && d.getFullYear()===year })
+  const monthTxs = txs.filter(t => { const d = new Date(t.date + 'T12:00:00'); return d.getMonth()===month && d.getFullYear()===year })
   const confirmedIncome = monthTxs.filter(t=>t.type==='income'&&t.confirmed).reduce((a,t)=>a+t.amount,0)
   const pendingIncome = monthTxs.filter(t=>t.type==='income'&&!t.confirmed).reduce((a,t)=>a+t.amount,0)
   const confirmedExpense = monthTxs.filter(t=>t.type==='expense'&&t.confirmed).reduce((a,t)=>a+t.amount,0)
@@ -646,7 +646,7 @@ function renderDashboard() {
         const currMonth = new Date().getMonth()
         const currYear = new Date().getFullYear()
         tx.forEach(t => {
-          const d = new Date(t.date)
+          const d = new Date(t.date + 'T12:00:00')
           if(d.getMonth() === currMonth && d.getFullYear() === currYear && t.type === 'Saída') {
             // Soma como despesa pessoal o que não for estritamente custo de agência
             if(t.category !== 'Serviço prestado' && t.category !== 'Imposto' && t.category !== 'Marketing') {
@@ -748,7 +748,7 @@ function initCharts() {
   // Doughnut
   const catMap = {}
   const month = now.getMonth(), year = now.getFullYear()
-  txs.filter(t => { const d=new Date(t.date); return d.getMonth()===month && d.getFullYear()===year && t.type==='expense' })
+  txs.filter(t => { const d=new Date(t.date + 'T12:00:00'); return d.getMonth()===month && d.getFullYear()===year && t.type==='expense' })
     .forEach(t => { catMap[t.category] = (catMap[t.category]||0)+t.amount })
 
   const dCtx = document.getElementById('doughnutChart')
@@ -789,7 +789,7 @@ function renderTransactions() {
 
   // Filter by selected month
   const txs = allTxs.filter(t => {
-    const d = new Date(t.date)
+    const d = new Date(t.date + 'T12:00:00')
     return d.getMonth() === txViewMonth && d.getFullYear() === txViewYear
   })
   const sorted = [...txs].sort((a,b)=>b.date.localeCompare(a.date))
@@ -836,6 +836,85 @@ function renderTransactions() {
         <div class="kpi-sub">lançamento(s) a confirmar</div>
       </div>
     </div>
+
+    ${(() => {
+      const tStart = new Date(txViewYear, txViewMonth, 1)
+      const monthRawTxs = rawTxs.filter(t => {
+        const d = new Date(t.date + 'T12:00:00')
+        return d.getMonth() === txViewMonth && d.getFullYear() === txViewYear
+      })
+      
+      const accs = LS.get('accounts',[])
+      let totalBal = accs.reduce((a,c)=>a+c.balance,0)
+      let fNet = 0
+      rawTxs.forEach(t => {
+        if (!t.confirmed) return
+        const d = new Date(t.date + 'T12:00:00')
+        if (d >= tStart) fNet += t.type==='income' ? t.amount : -t.amount
+      })
+      let rollingBalance = totalBal - fNet
+      const startBalDisplay = rollingBalance
+
+      const weeks = [
+        { label: 'Semana 1 (1 a 7)', start: 1, end: 7, inc: 0, exp: 0 },
+        { label: 'Semana 2 (8 a 14)', start: 8, end: 14, inc: 0, exp: 0 },
+        { label: 'Semana 3 (15 a 21)', start: 15, end: 21, inc: 0, exp: 0 },
+        { label: 'Semana 4 (22 a 28)', start: 22, end: 28, inc: 0, exp: 0 },
+        { label: 'Semana 5 (29+)', start: 29, end: 31, inc: 0, exp: 0 }
+      ]
+
+      monthRawTxs.forEach(t => {
+        const day = new Date(t.date + 'T12:00:00').getDate()
+        const w = weeks.find(wk => day >= wk.start && day <= wk.end)
+        if (w) {
+          if (t.type === 'income') w.inc += t.amount
+          else w.exp += t.amount
+        }
+      })
+
+      const weeklySummaryRows = weeks.map(w => {
+        const net = w.inc - w.exp
+        rollingBalance += net
+        return `
+          <tr>
+            <td style="font-weight:500">${w.label}</td>
+            <td style="text-align:right;color:var(--green)">${currency(w.inc)}</td>
+            <td style="text-align:right;color:var(--red)">${currency(w.exp)}</td>
+            <td style="text-align:right;color:${net>=0?'var(--green)':'var(--red)'};font-weight:600">${net>=0?'+':''}${currency(net)}</td>
+            <td style="text-align:right;font-weight:600">${currency(rollingBalance)}</td>
+          </tr>
+        `
+      }).join('')
+
+      return `
+        <div class="card anim anim-d2" style="margin-bottom:1.25rem">
+          <div style="margin-bottom:1rem">
+            <h3 style="font-size:1.05rem;font-weight:600">Resumo Semanal: Acumulado vs Realizado</h3>
+            <p style="color:var(--text3);font-size:0.8rem">Acumulado projetado baseado no saldo bancário. Independe de filtros globais.</p>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Período</th>
+                  <th style="text-align:right">Receitas</th>
+                  <th style="text-align:right">Despesas</th>
+                  <th style="text-align:right">Saldo Líquido</th>
+                  <th style="text-align:right">Saldo Acumulado</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="background:rgba(255,255,255,0.02)">
+                  <td colspan="4" style="font-weight:500;color:var(--text2)">Saldo Inicial do Mês (Calculado)</td>
+                  <td style="text-align:right;font-weight:700;color:var(--accent2)">${currency(startBalDisplay)}</td>
+                </tr>
+                ${weeklySummaryRows}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `
+    })()}
 
     <div class="card anim anim-d3">
       <div class="table-wrap">
@@ -1041,7 +1120,7 @@ function saveTransaction(e, editId) {
     const noEnd = document.getElementById('tx-noend')
     const reps = (noEnd && noEnd.checked) ? 12 : (parseInt(document.getElementById('tx-reps').value) || 1)
     const startDate = new Date(data.date + 'T12:00:00')
-    const startIdx = editId ? 1 : 0 
+    const startIdx = 1 
     
     // If it's new, push the original first
     if (!editId) {
@@ -1055,7 +1134,12 @@ function saveTransaction(e, editId) {
       const d = new Date(startDate)
       if (freq === 'weekly') d.setDate(d.getDate() + (i * 7))
       else if (freq === 'biweekly') d.setDate(d.getDate() + (i * 15))
-      else d.setMonth(d.getMonth() + i)
+      else {
+        const targetMonth = startDate.getMonth() + i
+        d.setDate(1) // prevent overflow
+        d.setMonth(targetMonth)
+        d.setDate(Math.min(startDate.getDate(), new Date(d.getFullYear(), targetMonth + 1, 0).getDate()))
+      }
 
       const dateStr = d.toISOString().split('T')[0]
 
@@ -1345,9 +1429,11 @@ function saveClient(e, editId) {
 
     for (let i = 0; i < data.contractMonths; i++) {
        const d = new Date(startDate)
-       d.setMonth(d.getMonth() + i)
+       const targetMonth = startDate.getMonth() + i
+       d.setDate(1) // prevent rollover
+       d.setMonth(targetMonth)
        // Set day to preferred payDay, capped by month length
-       if (prefDay > 0) d.setDate(Math.min(prefDay, new Date(d.getFullYear(), d.getMonth()+1, 0).getDate()))
+       if (prefDay > 0) d.setDate(Math.min(prefDay, new Date(d.getFullYear(), targetMonth + 1, 0).getDate()))
        
        txs.push({
            id: uid(),
@@ -1690,7 +1776,7 @@ function getProjectionData() {
 
   if (txs && txs.length) {
     txs.forEach(t => {
-      const d = new Date(t.date)
+      const d = new Date(t.date + 'T12:00:00')
       if (isNaN(d.getTime()) || d.getFullYear() !== projYear) return
       const mi = d.getMonth()
       if (t.type === 'income') {
