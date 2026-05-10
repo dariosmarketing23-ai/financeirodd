@@ -35,7 +35,11 @@ export function Dashboard() {
 
   const totalBalance = accounts.reduce((acc: number, a: Account) => acc + a.balance, 0)
 
-  const currentMonthTx = transactions.filter((t: Transaction) => new Date(t.date).getMonth() === new Date().getMonth())
+  const currentMonthTx = transactions.filter((t: Transaction) => {
+    const txDate = new Date(t.date)
+    const now = new Date()
+    return txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear()
+  })
   const totalIncome = currentMonthTx.filter((t: Transaction) => t.type === 'income').reduce((acc: number, t: Transaction) => acc + t.amount, 0)
   const totalExpense = currentMonthTx.filter((t: Transaction) => t.type === 'expense').reduce((acc: number, t: Transaction) => acc + t.amount, 0)
 

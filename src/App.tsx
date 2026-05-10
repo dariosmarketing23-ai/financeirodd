@@ -3,6 +3,7 @@ import { Dashboard } from './components/Dashboard'
 import { Transactions } from './components/Transactions'
 import { Accounts } from './components/Accounts'
 import { Planning } from './components/Planning'
+import { Clients } from './components/Clients'
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -18,7 +19,7 @@ function App() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '2rem' }}>
-          {['dashboard', 'transactions', 'planning', 'accounts'].map((tab) => (
+          {['dashboard', 'transactions', 'clients', 'planning', 'accounts'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -36,6 +37,7 @@ function App() {
             >
               {tab === 'dashboard' ? 'Painel Geral' :
                tab === 'transactions' ? 'Lançamentos' :
+               tab === 'clients' ? 'Clientes' :
                tab === 'planning' ? 'Planejamento' : 'Contas'}
             </button>
           ))}
@@ -53,6 +55,7 @@ function App() {
         <div className="animate-fade-in">
           {activeTab === 'dashboard' && <Dashboard />}
           {activeTab === 'transactions' && <Transactions />}
+          {activeTab === 'clients' && <Clients />}
           {activeTab === 'planning' && <Planning />}
           {activeTab === 'accounts' && <Accounts />}
         </div>
